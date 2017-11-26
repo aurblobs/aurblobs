@@ -160,12 +160,14 @@ class AurRepositor:
     def pkg_url(pkgname):
         return 'https://aur.archlinux.org/packages/{0}/'.format(pkgname)
 
-    def pkg_is_new(self, pkgname, head):
+    def pkg_is_new(self, pkgname, pkgversion):
         # this is a crude way, but is there a more beautiful way?
         # TODO: evaluate pkgver() functions if exists
-        if pkgname not in self.state:
+        if pkgname not in self.state['pkgs']:
+            print('{0} is new!'.format(pkgname))
             return True
-        return self.state[pkgname] != head
+        print('{0} local={1}, remote={2}'.format(pkgname, self.state['pkgs'][pkgname], pkgversion))
+        return self.state['pkgs'][pkgname] != pkgversion
 
     def pkg_check(self, pkgname):
         with TemporaryDirectory(prefix=__PROJECT__, suffix=pkgname) as basedir:
@@ -173,7 +175,7 @@ class AurRepositor:
             pkgrepo = git.Repo.clone_from(
                 self.pkg_remote(pkgname), pkgroot
             )
-            if self.pkg_is_new(pkgname, pkgrepo.head.commit):
+            if self.pkg_is_new(pkgname, str(pkgrepo.head.commit)):
                 self.pkg_build(pkgname, pkgrepo.head.commit, pkgroot)
 
     def pkg_build(self, pkgname, pkgversion, pkgroot):
