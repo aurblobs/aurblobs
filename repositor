@@ -1,25 +1,29 @@
 #!/usr/bin/env python3
 import json
 import os
+import sys
 from argparse import ArgumentParser
 from tempfile import TemporaryDirectory
 
-import docker
+import docker, docker.errors
 import git
 import gnupg
 import xdg
 import requests
 from pidfile import PIDFile
-from voluptuous import Schema, Length, All
-
+from voluptuous import Schema, Length, All, Required
 
 __PROJECT__ = 'aur-repositor'
 __VERSION__ = '0.1'
 
 
 CONFIG_SCHEMA = Schema({
-    'version': 1,
-    'pkgs': Schema([])
+    Required('version'): 1,
+    Required('repository'): Schema({
+        Required('name'): str,
+        Required('root'): str
+    }),
+    Required('pkgs'): [str]
 })
 STATE_SCHEMA = Schema({
     'version': 1,
@@ -39,6 +43,7 @@ class AurRepositor:
         # create empty schema
         self.config = {
             'version': 1,
+            'repository': None,
             'pkgs': []
         }
 
@@ -50,9 +55,6 @@ class AurRepositor:
         self.config_file = os.path.join(CONFIG_DIR, '{0}.json'.format(repository))
         self.state_file = os.path.join(CACHE_DIR, '{0}.json'.format(repository))
 
-        self.repository = {"name": repository,
-                           "root": ""}
-
         # load existing config and state
         self.load()
 
@@ -61,28 +63,33 @@ class AurRepositor:
         if os.path.exists(self.config_file):
             return
 
+        # create repository root
+        os.makedirs(root)
+        self.config['repository'] = {
+            'name': name,
+            'root': root
+        }
+
         # create repository signing key
         with TemporaryDirectory() as basedir:
             gpg = gnupg.GPG(homedir=basedir)
             input_data = gpg.gen_key_input(
-                key_type="RSA",
-                key_length=1024
+                key_type='eddsa', key_length=521, key_curve='Ed25519',
+                key_usage='sign', expire_date=0, name_email=mail,
+                name_real='{0} repository key'.format(name),
+                testing=True  # don't protect the key
             )
             key = gpg.gen_key(input_data)
-            with open(os.path.join(CONFIG_DIR, '{0}.pub'.format(name))) as handle:
+            with open(os.path.join(CONFIG_DIR, '{0}.pub'.format(name)), 'w') as handle:
                 handle.write(gpg.export_keys(key))
-            with open(os.path.join(CONFIG_DIR, '{0}.gpg'.format(name))) as handle:
+            with open(os.path.join(CONFIG_DIR, '{0}.gpg'.format(name)), 'w') as handle:
                 handle.write(gpg.export_keys(key, True))
-
-        # create repository root
-        os.makedirs(root)
-        self.repository["root"] = root
 
         # persist configuration
         self.save()
 
-
-    def repo_list(self):
+    @staticmethod
+    def repo_list():
         for fn in os.listdir(CONFIG_DIR):
             if fn.endswith('.json'):
                 yield fn
@@ -124,7 +131,9 @@ class AurRepositor:
             raise UnknownPackageException()
 
         # persist pkg to config
-        self.config['pkgs'].append(pkgname)
+        # TODO: set?
+        if pkgname not in self.config['pkgs']:
+            self.config['pkgs'].append(pkgname)
         self.save()
 
         # do initial build
@@ -164,33 +173,42 @@ class AurRepositor:
             pkgrepo = git.Repo.clone_from(
                 self.pkg_remote(pkgname), pkgroot
             )
-            if self.pkg_is_new(pkgname, repo.head.commit):
-                self.pkg_build(pkgname, pkgroot)
+            if self.pkg_is_new(pkgname, pkgrepo.head.commit):
+                self.pkg_build(pkgname, pkgrepo.head.commit, pkgroot)
 
     def pkg_build(self, pkgname, pkgversion, pkgroot):
-        gpg_privkey = os.path.join(CONFIG_DIR, '{0}.gpg'.format(self.repository["name"]))
+        gpg_privkey = os.path.join(
+            CONFIG_DIR, '{0}.gpg'.format(self.config['repository']['name']))
 
         client = docker.from_env()
+
+        try:
+            client.images.get('aur-repositor-build')
+        except docker.errors.ImageNotFound:
+            self.docker_prepare()
+
+        print("Building {}...".format(pkgname))
         client.containers.run(
-            image='',
+            image='aur-repositor-build',
             name='repositor-{}'.format(pkgname),
             remove=True,
-            emvironment={"REPO_NAME": self.repository["name"]},
+            environment={"REPO_NAME": self.config['repository']['name']},
             volumes={'/pkg': {'bind': pkgroot, 'mode': 'rw'},
-                     '/repo': {'bind': self.repository["root"] , 'mode': 'rw'},
-                     '/privkey.gpg': {'bind': gpg_privkey, 'mode': 'r'}
+                     '/repo': {'bind': self.config['repository']['root'] , 'mode': 'rw'},
+                     '/privkey.gpg': {'bind': gpg_privkey, 'mode': 'ro'}
                     }
         )
+
+        self.state['pkgs'][pkgname] = str(pkgversion)
+        self.save()
 
     def update(self):
         for pkgname in self.pkg_list():
             self.pkg_check(pkgname)
 
-
-def main():
-    # root = /srv/testrepo => testrepo.tar.gz
-    # repository = /srv/testrepo/testrepo.tar.gz => root = /srv/testrepo
-    repositor = AurRepositor('testrepo')
+    def docker_prepare(self):
+        client = docker.from_env()
+        client.images.build(path='docker/', tag='aur-repositor-build')
 
 
 if __name__ == '__main__':
@@ -206,9 +224,12 @@ if __name__ == '__main__':
     repo_init_parser = subparser.add_parser('init', help='Initialize a repository')
     repo_init_parser.set_defaults(mode='init')
     # TODO: forbid [local, core, extra, community multilib, ]
-    repo_init_parser.add_argument('-n', '--name', required=True)
-    repo_init_parser.add_argument('-r', '--root', required=True)
-    repo_init_parser.add_argument('-m', '--mail', required=True)
+    repo_init_parser.add_argument('-r', '--repository', dest='repository', required=True)
+    repo_init_parser.add_argument('--root', required=True, help='Path to the repository root')
+    repo_init_parser.add_argument('--mail', required=True, help='Mail address for the Signing Key')
+
+    repo_list_parser = subparser.add_parser('rlist', help='List available repositories')
+    repo_list_parser.set_defaults(mode='rlist')
 
     repo_update_parser = subparser.add_parser(
         'update', aliases=['up'], help='Update all packages in repository')
@@ -218,8 +239,8 @@ if __name__ == '__main__':
     # Manage Packages
     pkg_add_parser = subparser.add_parser('add', help='Add a new package')
     pkg_add_parser.set_defaults(mode='add')
-    pkg_add_parser.add_argument('-r', '--repository', dest='repository', required=True)
     pkg_add_parser.add_argument('pkg', help='AUR packet name')
+    pkg_add_parser.add_argument('-r', '--repository', dest='repository', required=True)
 
     pkg_list_parser = subparser.add_parser('list', help='Show configured packages')
     pkg_list_parser.set_defaults(mode='list')
@@ -227,11 +248,20 @@ if __name__ == '__main__':
 
     pkg_rm_parser = subparser.add_parser('rm', help='Remove a package')
     pkg_rm_parser.set_defaults(mode='rm')
-    pkg_rm_parser.add_argument('-r', '--repository', dest='repository', required=True)
     pkg_rm_parser.add_argument('pkg', help='AUR packet name')
+    pkg_rm_parser.add_argument('-r', '--repository', dest='repository', required=True)
 
     args = argparser.parse_args()
 
+    # read-only operations
+    if 'mode' not in args:
+        sys.exit(0)
+    elif args.mode == 'rlist':
+        for repo in AurRepositor.repo_list():
+            print(''.join(repo.split('.')[0:-1]))
+        sys.exit(0)
+
+    # read/write operations
     with PIDFile(os.path.join(CONFIG_DIR, '{}.pid'.format(args.repository))):
         repositor = AurRepositor(args.repository)
 
@@ -246,11 +276,7 @@ if __name__ == '__main__':
                 print(pkg, version)
 
         elif args.mode == 'init':
-            repositor.repo_init(args.root, args.name, args.mail)
-
-        elif args.mode == 'rlist':
-            for repo in repositor.repo_list():
-                print(repo)
+            repositor.repo_init(args.root, args.repository, args.mail)
 
         elif args.mode == 'update':
             repositor.update()
