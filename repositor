@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import datetime
 import json
 import os
 import sys
@@ -181,6 +182,7 @@ class AurRepositor:
     def pkg_build(self, pkgname, pkgversion, pkgroot):
         gpg_privkey = os.path.join(
             CONFIG_DIR, '{0}.gpg'.format(self.config['repository']['name']))
+        timestamp = '{:%H-%M}'.format(datetime.datetime.now())
 
         client = docker.from_env()
 
@@ -190,17 +192,16 @@ class AurRepositor:
             self.docker_prepare()
 
         print("Building {}...".format(pkgname))
+        # remove=True only removed for debugging purposes in this early stage.
         client.containers.run(
             image='aur-repositor-build',
-            name='repositor-{}'.format(pkgname),
-            remove=True,
+            name='repositor_{}_{}'.format(pkgname, timestamp),
             environment={"REPO_NAME": self.config['repository']['name']},
-            volumes={'/pkg': {'bind': pkgroot, 'mode': 'rw'},
-                     '/repo': {'bind': self.config['repository']['root'] , 'mode': 'rw'},
-                     '/privkey.gpg': {'bind': gpg_privkey, 'mode': 'ro'}
+            volumes={pkgroot: {'bind': '/pkg', 'mode': 'rw'},
+                     self.config['repository']['root']: {'bind': '/repo', 'mode': 'rw'},
+                     gpg_privkey: {'bind': '/privkey.gpg', 'mode': 'ro'}
                     }
         )
-
         self.state['pkgs'][pkgname] = str(pkgversion)
         self.save()
 
