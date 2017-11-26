@@ -137,9 +137,6 @@ class AurRepositor:
             self.config['pkgs'].append(pkgname)
         self.save()
 
-        # do initial build
-        self.pkg_check(pkgname)
-
     def pkg_rm(self, pkgname):
         # remove pkg from config and state if exists
         if pkgname in self.config['pkgs']:
