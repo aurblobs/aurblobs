@@ -203,6 +203,8 @@ class AurRepositor:
         self.save()
 
     def update(self):
+        # Update container before starting a update-all run
+        docker_prepare()
         for pkgname in self.pkg_list():
             self.pkg_check(pkgname)
 
