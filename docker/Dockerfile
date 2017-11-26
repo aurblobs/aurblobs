@@ -1,6 +1,6 @@
 FROM pritunl/archlinux:latest
 
-RUN pacman -Sy --noconfirm base-devel git perl gnupg
+RUN pacman -Sy --noconfirm base-devel git perl gnupg xdelta3
 
 COPY sudoers /etc/sudoers
 RUN useradd -m build
