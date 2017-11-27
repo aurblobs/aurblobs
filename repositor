@@ -220,9 +220,9 @@ class AurRepositor:
 
 if __name__ == '__main__':
     if not os.path.exists(CONFIG_DIR):
-        os.mkdir(CONFIG_DIR)
+        os.makedirs(CONFIG_DIR)
     if not os.path.exists(CACHE_DIR):
-        os.mkdir(CACHE_DIR)
+        os.makedirs(CACHE_DIR)
 
     argparser = ArgumentParser()
     subparser = argparser.add_subparsers()
