@@ -171,13 +171,13 @@ class AurRepositor:
         print('{0} local={1}, remote={2}'.format(pkgname, self.state['pkgs'][pkgname], pkgversion))
         return self.state['pkgs'][pkgname] != pkgversion
 
-    def pkg_check(self, pkgname):
+    def pkg_check(self, pkgname, force=False):
         with TemporaryDirectory(prefix=__PROJECT__, suffix=pkgname) as basedir:
             pkgroot = os.path.join(basedir, '{}.git'.format(pkgname))
             pkgrepo = git.Repo.clone_from(
                 self.pkg_remote(pkgname), pkgroot
             )
-            if self.pkg_is_new(pkgname, str(pkgrepo.head.commit)):
+            if force or self.pkg_is_new(pkgname, str(pkgrepo.head.commit)):
                 self.pkg_build(pkgname, pkgrepo.head.commit, pkgroot)
 
     def pkg_build(self, pkgname, pkgversion, pkgroot):
@@ -206,11 +206,11 @@ class AurRepositor:
         self.state['pkgs'][pkgname] = str(pkgversion)
         self.save()
 
-    def update(self):
+    def update(self, force):
         # Update container before starting a update-all run
         AurRepositor.docker_prepare()
         for pkgname in self.pkg_list():
-            self.pkg_check(pkgname)
+            self.pkg_check(pkgname, force)
 
     @staticmethod
     def docker_prepare():
@@ -242,6 +242,7 @@ if __name__ == '__main__':
         'update', aliases=['up'], help='Update all packages in repository')
     repo_update_parser.set_defaults(mode='update')
     repo_update_parser.add_argument('-r', '--repository', dest='repository', required=True)
+    repo_update_parser.add_argument('-f', '--force', action='store_true')
 
     # Manage Packages
     pkg_add_parser = subparser.add_parser('add', help='Add a new package')
@@ -286,4 +287,4 @@ if __name__ == '__main__':
             repositor.repo_init(args.root, args.repository, args.mail)
 
         elif args.mode == 'update':
-            repositor.update()
+            repositor.update(args.force)
