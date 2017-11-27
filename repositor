@@ -81,8 +81,12 @@ class AurRepositor:
                 testing=True  # don't protect the key
             )
             key = gpg.gen_key(input_data)
-            with open(os.path.join(CONFIG_DIR, '{0}.pub'.format(name)), 'w') as handle:
+
+            # copy public key to repository root
+            with open(os.path.join(self.config['repository']['root'], '{0}.gpg'.format(name)), 'w') as handle:
                 handle.write(gpg.export_keys(key))
+
+            # copy private key to config root
             with open(os.path.join(CONFIG_DIR, '{0}.gpg'.format(name)), 'w') as handle:
                 handle.write(gpg.export_keys(key, True))
 
@@ -204,11 +208,12 @@ class AurRepositor:
 
     def update(self):
         # Update container before starting a update-all run
-        docker_prepare()
+        AurRepositor.docker_prepare()
         for pkgname in self.pkg_list():
             self.pkg_check(pkgname)
 
-    def docker_prepare(self):
+    @staticmethod
+    def docker_prepare():
         client = docker.from_env()
         client.images.build(path='docker/', tag='aur-repositor-build')
 
