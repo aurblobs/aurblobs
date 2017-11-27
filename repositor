@@ -194,9 +194,10 @@ class AurRepositor:
 
         print("Building {}...".format(pkgname))
         # remove=True only removed for debugging purposes in this early stage.
-        client.containers.run(
+        container = client.containers.run(
             image='aur-repositor-build',
             name='repositor_{}_{}'.format(pkgname, timestamp),
+            detach=True,
             environment={
                 "REPO_NAME": self.config['repository']['name'],
                 "USER_ID": os.getuid()
@@ -207,6 +208,8 @@ class AurRepositor:
                 gpg_privkey: {'bind': '/privkey.gpg', 'mode': 'ro'}
             }
         )
+        for line in container.logs(stream=True):
+            print(line.decode())
         self.state['pkgs'][pkgname] = pkgversion
         self.save()
 
