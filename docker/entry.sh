@@ -1,5 +1,7 @@
 #! /bin/bash
 
+usermod -u $USER_ID build
+
 gpg --import /privkey.gpg
 
 cd /pkg

@@ -5,8 +5,9 @@ RUN pacman -Sy --noconfirm base-devel git perl gnupg xdelta3
 COPY sudoers /etc/sudoers
 RUN useradd -m build
 
-COPY entry.sh /entry.sh
+ENV USER_ID 1000
 
+COPY entry.sh /entry.sh
 
 VOLUME ["/pkgroot"]
 VOLUME ["/repository"]

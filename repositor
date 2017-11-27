@@ -117,7 +117,7 @@ class AurRepositor:
     def save(self):
         # configuration
         with open(self.config_file, 'w') as handle:
-            print(json.dumps(self.config))
+            print(json.dumps(self.config, indent=2))
             json.dump(self.config, handle)
 
         # state
@@ -178,7 +178,7 @@ class AurRepositor:
                 self.pkg_remote(pkgname), pkgroot
             )
             if force or self.pkg_is_new(pkgname, str(pkgrepo.head.commit)):
-                self.pkg_build(pkgname, pkgrepo.head.commit, pkgroot)
+                self.pkg_build(pkgname, str(pkgrepo.head.commit), pkgroot)
 
     def pkg_build(self, pkgname, pkgversion, pkgroot):
         gpg_privkey = os.path.join(
@@ -197,13 +197,17 @@ class AurRepositor:
         client.containers.run(
             image='aur-repositor-build',
             name='repositor_{}_{}'.format(pkgname, timestamp),
-            environment={"REPO_NAME": self.config['repository']['name']},
-            volumes={pkgroot: {'bind': '/pkg', 'mode': 'rw'},
-                     self.config['repository']['root']: {'bind': '/repo', 'mode': 'rw'},
-                     gpg_privkey: {'bind': '/privkey.gpg', 'mode': 'ro'}
-                    }
+            environment={
+                "REPO_NAME": self.config['repository']['name'],
+                "USER_ID": os.getuid()
+            },
+            volumes={
+                pkgroot: {'bind': '/pkg', 'mode': 'rw'},
+                self.config['repository']['root']: {'bind': '/repo', 'mode': 'rw'},
+                gpg_privkey: {'bind': '/privkey.gpg', 'mode': 'ro'}
+            }
         )
-        self.state['pkgs'][pkgname] = str(pkgversion)
+        self.state['pkgs'][pkgname] = pkgversion
         self.save()
 
     def update(self, force):
