@@ -41,7 +41,7 @@ setup(
     license='AGPL',
     install_requires=required,
     packages=find_packages(),
-    install_package_data=True,
+    include_package_data=True,
     entry_points={
         'console_scripts': ['aurblobs=aurblobs:cli']
     },
