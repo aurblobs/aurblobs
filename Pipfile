@@ -1,12 +1,19 @@
 [[source]]
+
 url = "https://pypi.python.org/simple"
 verify_ssl = true
+name = "pypi"
+
 
 [packages]
-gitpython = "*"
-gnupg = "*"
-xdg = "*"
+
 requests = "*"
-python-pidfile = "*"
-voluptuous = "*"
+gitpython = "*"
 docker = "*"
+xdg = "*"
+click = "*"
+gnupg = "*"
+
+
+[dev-packages]
+
