@@ -47,7 +47,9 @@ def remove(repository, package):
 def _list(repository):
     if not repository:
         repositories = [
-            Repository('.'.join(os.path.basename(repofile).split('.')[:-1]))
+            Repository(
+                # remove file extension and absolute path
+                '.'.join(os.path.basename(str(repofile)).split('.')[:-1]))
             for repofile
             in Path(CONFIG_DIR).glob('*.json')
         ]
