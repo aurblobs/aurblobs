@@ -89,15 +89,42 @@ class Repository:
             "loading config: {0}".format(self.config_file()),
             file=sys.stderr
         )
-        with open(self.config_file()) as handle:
-            config = json.load(handle)
+        try:
+            with open(self.config_file()) as handle:
+                config = json.load(handle)
+        except FileNotFoundError:
+            click.echo(
+                'Repository configuration with that name does not exist.',
+                file=sys.stderr
+            )
+            sys.exit(1)
+        except json.decoder.JSONDecodeError:
+            click.echo(
+                'Repository configuration is corrupt.',
+                file=sys.stderr
+            )
+            sys.exit(1)
 
         click.echo(
             "loading state: {0}".format(self.state_file()),
             file=sys.stderr
         )
-        with open(self.state_file()) as handle:
-            state = json.load(handle)
+
+        try:
+            with open(self.state_file()) as handle:
+                state = json.load(handle)
+        except FileNotFoundError:
+            click.echo(
+                'Repository state file does not exist, giving up!',
+                file=sys.stderr
+            )
+            sys.exit(1)
+        except json.decoder.JSONDecodeError:
+            click.echo(
+                'Repository state is corrupt.',
+                file=sys.stderr
+            )
+            sys.exit(1)
 
         self.basedir = config['basedir']
 
