@@ -1,4 +1,4 @@
-#! /bin/bash
+#!/bin/bash
 
 usermod -u $USER_ID build
 
@@ -15,8 +15,10 @@ if [ $? -eq 0 ]; then
 	cp /pkg/*.pkg.tar.xz pkgs/
 	cp /pkg/*.pkg.tar.xz.sig pkgs/
 	repo-add --delta --remove $REPO_NAME.db.tar.gz pkgs/*.pkg.tar.xz
+
+	exit 0
 else
-	echo "Build process failed"
+	exit 1
 fi
 
 

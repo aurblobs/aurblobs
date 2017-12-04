@@ -1,6 +1,7 @@
 import datetime
 import os
 import tarfile
+import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -58,20 +59,26 @@ class Package:
                         self.name, self.commit, head
                     ))
 
-                self.build(pkgroot)
-                self.commit = head
+                if self.build(pkgroot):
+                    click.echo('package {0} build complete')
+                    self.commit = head
 
-                new_pkgs = self.get_pkg_names(pkgroot)
-                if not self.pkgs:
-                    pkgdiff = set(new_pkgs.keys()).difference(set(self.pkgs.keys()))
-                    if pkgdiff:
-                        click.echo('package {0} did not update [{1}]'.format(
-                            self.name, ', '.join(pkgdiff)
-                        ))
+                    new_pkgs = self.get_pkg_names(pkgroot)
+                    if not self.pkgs:
+                        pkgdiff = set(new_pkgs.keys()).difference(set(self.pkgs.keys()))
+                        if pkgdiff:
+                            click.echo('package {0} did not update [{1}]'.format(
+                                self.name, ', '.join(pkgdiff)
+                            ))
 
-                print("old", self.pkgs)
-                self.pkgs = new_pkgs
-                print("new", self.pkgs)
+                    print("before", self.pkgs)
+                    self.pkgs = new_pkgs
+                    print("after ", self.pkgs)
+                else:
+                    click.echo(
+                        'package {0} did not build. check the build log for errors.'.format(self.name),
+                        file=sys.stderr
+                    )
 
             else:
                 click.echo('{0} is up-to-date'.format(self.name))
@@ -103,6 +110,8 @@ class Package:
 
         for line in container.logs(stream=True):
             print('\t{0}'.format(line.decode().rstrip('\n')))
+
+        return container.wait() == 0
 
     @staticmethod
     def get_pkg_names(pkgroot):
