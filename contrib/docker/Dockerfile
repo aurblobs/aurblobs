@@ -15,4 +15,4 @@ VOLUME ["/pkgroot"]
 VOLUME ["/repository"]
 VOLUME ["/privkey.gpg"]
 
-CMD ["su", "-c", "/entry.sh", "build"]
+CMD usermod -u $USER_ID build && su -c /entry.sh build
