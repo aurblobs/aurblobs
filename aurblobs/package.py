@@ -60,7 +60,7 @@ class Package:
                     ))
 
                 if self.build(pkgroot):
-                    click.echo('package {0} build complete')
+                    click.echo('package {0} build complete'.format(self.name))
                     self.commit = head
 
                     new_pkgs = self.get_pkg_names(pkgroot)
