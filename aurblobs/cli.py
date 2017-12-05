@@ -45,7 +45,7 @@ def init(repository, basedir, mail):
 @click.argument('package')
 def add(repository, package):
     if not repository:
-        if available_repositories != 1:
+        if len(available_repositories) != 1:
             click.echo(
                 "Repository ambiguous, specify one with --repository.",
                 file=sys.stderr
