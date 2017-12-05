@@ -9,10 +9,8 @@ if [ $? -eq 0 ]; then
 	echo "Build succeded. Update repository db"
 
 	cd /repo
-	mkdir -p pkgs
-	cp /pkg/*.pkg.tar.xz pkgs/
-	cp /pkg/*.pkg.tar.xz.sig pkgs/
-	repo-add --delta --remove $REPO_NAME.db.tar.gz pkgs/*.pkg.tar.xz
+	cp /pkg/*.pkg.tar.* .
+	repo-add --delta --remove $REPO_NAME.db.tar.gz $(ls /pkg/*.pkg.tar.xz)
 
 	exit 0
 else
