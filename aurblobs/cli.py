@@ -4,7 +4,7 @@ import click
 import os.path
 
 from . import __VERSION__
-from .constants import CONFIG_DIR, PROJECT_NAME
+from .constants import CONFIG_DIR, CACHE_DIR, PROJECT_NAME
 from .repository import Repository
 
 
@@ -92,4 +92,10 @@ cli.add_command(update)
 
 
 if __name__ == '__main__':
+    for directory in [CONFIG_DIR, CACHE_DIR]:
+        try:
+            os.mkdir(directory)
+        except FileExistsError:
+            pass
+
     cli()

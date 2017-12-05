@@ -76,7 +76,8 @@ class Package:
                     print("after ", self.pkgs)
                 else:
                     click.echo(
-                        'package {0} did not build. check the build log for errors.'.format(self.name),
+                        'package {0} did not build. check the build log for '
+                        'errors.'.format(self.name),
                         file=sys.stderr
                     )
 
