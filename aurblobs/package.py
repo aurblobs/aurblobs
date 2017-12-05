@@ -118,7 +118,6 @@ class Package:
     def get_pkg_names(pkgroot):
         def pkgname_from_pkgfile(pkgfile):
             # open pkg.tar.* file and read metadata from .PKGINFO file
-            print(pkgfile, os.path.exists(pkgfile))
             with tarfile.open(pkgfile, 'r') as tar:
                 # find pkgname and pkgver
                 with TemporaryDirectory(prefix='srcinfo') as tempdir:
@@ -142,11 +141,13 @@ class Package:
         # use globbing to find packages in pkgroot
         resulting_pkgs = {}
         for pkgfile in Path(pkgroot).glob('*.pkg.tar*'):
-            if str(pkgfile).endswith('.sig'):
+            pkgfile = str(pkgfile)
+
+            if pkgfile.endswith('.sig'):
                 # skip signature files
                 continue
 
-            pkgname, pkgver = pkgname_from_pkgfile(str(pkgfile))
+            pkgname, pkgver = pkgname_from_pkgfile(pkgfile)
             resulting_pkgs[pkgname] = {
                 'version': pkgver,
                 'file': os.path.basename(pkgfile)
