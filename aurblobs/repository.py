@@ -191,7 +191,9 @@ class Repository:
 
         # create package instance
         pkg = Package(self, pkgname)
-        print(pkg)
+        if not pkg.exists():
+            click.echo('package does not exist in AUR', file=sys.stderr)
+            sys.exit(1)
 
         # add package to repository
         self.packages.add(pkg)
