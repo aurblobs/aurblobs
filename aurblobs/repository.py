@@ -68,8 +68,7 @@ class Repository:
             gpg = gnupg.GPG(homedir=basedir)
             gpg_version_string = gpg.binary_version.split('\\n')[0]
 
-            # eddsa keys require gpg >= 2.1.0
-            # fallback to rsa4096
+            # default to Ed25519, fallback to RSA for GPG versions before 2.1.0
             if parse_version(gpg_version_string) >= parse_version('2.1.0'):
                 input_data = gpg.gen_key_input(
                     key_type='eddsa', key_length=521, key_curve='Ed25519',
