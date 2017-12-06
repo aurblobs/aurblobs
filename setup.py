@@ -37,11 +37,10 @@ setup(
     long_description=long_description,
     author='Martin Weinelt',
     author_email='martin+aurblobs@linuxlounge.net',
-    url='https://www.github.com/mweinelt/aurblobs',
+    url='https://www.github.com/aurblobs/aurblobs',
     license='AGPL',
     install_requires=required,
     packages=find_packages(),
-    include_package_data=True,
     entry_points={
         'console_scripts': ['aurblobs=aurblobs:cli']
     },
