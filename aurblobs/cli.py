@@ -22,6 +22,9 @@ def is_valid_repository(ctx, param, value):
     if value and value not in available_repositories:
         click.echo('Repository with that name does not exist', file=sys.stderr)
         sys.exit(1)
+    elif value:
+        return Repository(value)
+    return None
 
 
 @click.group()
@@ -35,15 +38,15 @@ def cli():
 @click.argument('basedir')
 @click.argument('mail')
 def init(repository, basedir, mail):
-    repo = Repository()
+    _repository = Repository()
 
-    repo.create(repository, basedir, mail)
+    _repository.create(repository, basedir, mail)
 
 
 @click.command(short_help='Add a new package to an existing repository.')
-@click.option('--repository', default=None, callback=is_valid_repository)
+@click.option('--repository', callback=is_valid_repository)
 @click.argument('package')
-def add(repository, package):
+def add(package, repository=None):
     if not repository:
         if len(available_repositories) != 1:
             click.echo(
@@ -51,33 +54,37 @@ def add(repository, package):
                 file=sys.stderr
             )
             sys.exit(1)
-        repository = available_repositories[0]
+        repository = Repository(available_repositories[0])
 
-    repo = Repository(repository)
-
-    repo.add(package)
+    repository.add(package)
 
 
 @click.command(short_help='Remove a package from a repository')
 @click.option('--repository', callback=is_valid_repository)
 @click.argument('package')
 def remove(repository, package):
-    repo = Repository(repository)
+    if not repository:
+        if len(available_repositories) != 1:
+            click.echo(
+                "Repository ambiguous, specify one with --repository.",
+                file=sys.stderr
+            )
+            sys.exit(1)
+        repository = Repository(available_repositories[0])
 
-    repo.remove(package)
+    # TODO: Implementation missing
+    repository.remove(package)
 
 
 @click.command('list', short_help='List repositories and related packages')
 @click.option('--repository', callback=is_valid_repository)
-def _list(repository=None):
+def _list(repository):
     if repository:
-        repositories = [Repository(repository)]
+        repositories = [repository]
     else:
-        repositories = available_repositories
+        repositories = [Repository(name) for name in available_repositories]
 
-    for name in repositories:
-        repository = Repository(name)
-
+    for repository in repositories:
         click.echo("{0}: {1} ({2} packages)".format(
             repository.name, repository.basedir, len(repository.packages)))
 
@@ -89,23 +96,22 @@ def _list(repository=None):
                     package.name, package.pkgs[package.name]['version']))
             else:
                 click.echo(' - {0}'.format(package.name))
-                for _package in package.pkgs:
-                    click.echo('   - {0}'.format(_package))
+                for pkg, pkginfo in package.pkgs.items():
+                    click.echo('   - {0} ({1})'.format(
+                        pkg, pkginfo['version']))
 
 
 @click.command(short_help='Update packages in repository to latest version.')
-@click.option('--repository', default=None, callback=is_valid_repository)
+@click.option('--repository', callback=is_valid_repository)
 @click.option('--force', is_flag=True, default=False,
               help='Bypass up-to-date check')
-def update(repository, force):
+def update(force, repository):
     if repository:
-        repositories = [Repository(repository)]
+        repositories = [repository]
     else:
-        repositories = available_repositories
+        repositories = [Repository(name) for name in available_repositories]
 
-    for name in repositories:
-        repository = Repository(name)
-
+    for repository in repositories:
         for pkg in repository.packages:
             pkg.update(force)
             repository.save()
