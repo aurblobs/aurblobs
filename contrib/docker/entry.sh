@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 gpg --import /privkey.gpg
 
 cd /pkg
