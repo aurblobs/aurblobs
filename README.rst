@@ -25,7 +25,7 @@ Dependencies
 - Docker
 - GnuPG
     - versions >=2.1.0 will generate Ed25519 Signing Keys
-    - olrder versions will generate RSA (4096 Bit) Signing Keys
+    - older versions will generate RSA (4096 Bit) Signing Keys
 
 
 Usage
@@ -47,7 +47,7 @@ Usage
       update  Update packages in repository to latest version.
 
 
-Initialize repository
+Initializing repository
 /////////////////////
 
 This will create the repository basedir and a dedicatd GPG keypair. It will also install
