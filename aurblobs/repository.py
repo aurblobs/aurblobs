@@ -2,6 +2,7 @@ import json
 import os
 import sys
 from tempfile import TemporaryDirectory
+from pkg_resources import parse_version
 
 import gnupg
 import click
@@ -65,12 +66,25 @@ class Repository:
         # create gpg signing key
         with TemporaryDirectory() as basedir:
             gpg = gnupg.GPG(homedir=basedir)
-            input_data = gpg.gen_key_input(
-                key_type='eddsa', key_length=521, key_curve='Ed25519',
-                key_usage='sign', expire_date=0, name_email=mail,
-                name_real='{0} repository key'.format(name),
-                testing=True  # don't protect the key
-            )
+            gpg_version_string = gpg.binary_version.split('\\n')[0]
+
+            # eddsa keys require gpg >= 2.1.0
+            # fallback to rsa4096
+            if parse_version(gpg_version_string) >= parse_version('2.1.0'):
+                input_data = gpg.gen_key_input(
+                    key_type='eddsa', key_length=521, key_curve='Ed25519',
+                    key_usage='sign', expire_date=0, name_email=mail,
+                    name_real='{0} repository key'.format(name),
+                    testing=True  # don't protect the key
+                )
+            else:
+                input_data = gpg.gen_key_input(
+                    key_type='rsa', key_length=4096,
+                    key_usage='sign', expire_date=0, name_email=mail,
+                    name_real='{0} repository key'.format(name),
+                    testing=True  # don't protect the key
+                )
+
             key = gpg.gen_key(input_data)
 
             # copy public key to repository basedir

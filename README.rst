@@ -23,8 +23,9 @@ Dependencies
 ------------
 
 - Docker
-- GnuPG (>= 2.1.0)
-    - by default we generate Ed25519 Signing Keys
+- GnuPG
+    - versions >=2.1.0 will generate Ed25519 Signing Keys
+    - olrder versions will generate RSA (4096 Bit) Signing Keys
 
 
 Usage
