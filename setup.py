@@ -15,7 +15,7 @@ here = os.path.abspath(os.path.dirname(__file__))
 
 
 # use README as long description
-with codecs.open(os.path.join(here, 'README.md'), encoding='utf-8') as handle:
+with codecs.open(os.path.join(here, 'README.rst'), encoding='utf-8') as handle:
     long_description = handle.read()
 
 # required dependencies
