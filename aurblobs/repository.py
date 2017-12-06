@@ -85,10 +85,6 @@ class Repository:
         self.save()
 
     def load(self):
-        click.echo(
-            "loading config: {0}".format(self.config_file()),
-            file=sys.stderr
-        )
         try:
             with open(self.config_file()) as handle:
                 config = json.load(handle)
@@ -104,11 +100,6 @@ class Repository:
                 file=sys.stderr
             )
             sys.exit(1)
-
-        click.echo(
-            "loading state: {0}".format(self.state_file()),
-            file=sys.stderr
-        )
 
         try:
             with open(self.state_file()) as handle:
