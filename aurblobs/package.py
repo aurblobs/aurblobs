@@ -94,20 +94,28 @@ class Package:
 
         client = docker.from_env()
         # remove=True only removed for debugging purposes in this early stage.
-        container = client.containers.run(
-            image=DOCKER_IMAGE,
-            name='{0}_{1}_{2}'.format(PROJECT_NAME, self.name, timestamp),
-            detach=True,
-            environment={
-                "REPO_NAME": self.repository.name,
-                "USER_ID": os.getuid()
-            },
-            volumes={
-                pkgroot: {'bind': '/pkg', 'mode': 'rw'},
-                self.repository.basedir: {'bind': '/repo', 'mode': 'rw'},
-                signing_key: {'bind': '/privkey.gpg', 'mode': 'ro'}
-            }
-        )
+        try:
+            container = client.containers.run(
+                image=DOCKER_IMAGE,
+                name='{0}_{1}_{2}'.format(PROJECT_NAME, self.name, timestamp),
+                detach=True,
+                environment={
+                    "REPO_NAME": self.repository.name,
+                    "USER_ID": os.getuid()
+                },
+                volumes={
+                    pkgroot: {'bind': '/pkg', 'mode': 'rw'},
+                    self.repository.basedir: {'bind': '/repo', 'mode': 'rw'},
+                    signing_key: {'bind': '/privkey.gpg', 'mode': 'ro'}
+                }
+            )
+        except requests.exceptions.ConnectionError as ex:
+            click.echo(
+                'Unable to start build container, is the docker daemon '
+                'running?\n{0}'.format(ex),
+                file=sys.stderr
+            )
+            sys.exit(1)
 
         for line in container.logs(stream=True):
             print('\t{0}'.format(line.decode().rstrip('\n')))
