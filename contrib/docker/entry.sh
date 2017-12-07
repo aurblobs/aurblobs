@@ -12,7 +12,7 @@ if [ $? -eq 0 ]; then
 
 	cd /repo
 	cp /pkg/*.pkg.tar.* .
-	repo-add --delta --remove $REPO_NAME.db.tar.gz $(ls /pkg/*.pkg.tar.xz)
+	repo-add --delta --remove $REPO_NAME.db.tar.gz $(basename -a `ls /pkg/*.pkg.tar.xz` | tr '\n' ' ')
 
 	exit 0
 else
