@@ -88,7 +88,7 @@ class Package:
                     ]
                     if upgraded:
                         click.echo('  upgraded:')
-                        for pkgname in new:
+                        for pkgname in upgraded:
                             click.echo('    - {0} ({1} → {2})'.format(
                                 pkgname,
                                 self.pkgs[pkgname]['version'],
