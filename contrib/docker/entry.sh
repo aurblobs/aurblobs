@@ -5,7 +5,7 @@ set -e
 gpg --import /privkey.gpg
 
 cd /pkg
-makepkg -fs --noconfirm --sign
+makepkg -fs --noconfirm --sign MAKEFLAGS=-j$JOBS
 
 if [ $? -eq 0 ]; then
 	echo "Build succeded. Update repository db"
@@ -18,5 +18,3 @@ if [ $? -eq 0 ]; then
 else
 	exit 1
 fi
-
-

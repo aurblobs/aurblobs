@@ -1,7 +1,7 @@
 import datetime
 import os
-import tarfile
 import sys
+import tarfile
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -49,7 +49,7 @@ class Package:
         # string might be determined at build time
         return self.commit != commit
 
-    def update(self, force=False):
+    def update(self, force=False, jobs=None):
         with TemporaryDirectory(prefix=PROJECT_NAME, suffix=self.name) as basedir:
             pkgroot = os.path.join(basedir, '{0}.git'.format(self.name))
             pkgrepo = git.Repo.clone_from(
@@ -63,7 +63,7 @@ class Package:
                         self.fullname, self.commit, head
                     ))
 
-                if self.build(pkgroot):
+                if self.build(pkgroot, jobs):
                     click.echo(
                         '{0}: package build complete'.format(self.fullname)
                     )
@@ -126,7 +126,7 @@ class Package:
 
         return False
 
-    def build(self, pkgroot):
+    def build(self, pkgroot, jobs=None):
         signing_key = self.repository.signing_key_file()
         timestamp = '{:%H-%M-%s}'.format(datetime.datetime.now())
 
@@ -141,7 +141,8 @@ class Package:
                 detach=True,
                 environment={
                     "REPO_NAME": self.repository.name,
-                    "USER_ID": os.getuid()
+                    "USER_ID": os.getuid(),
+                    "JOBS": jobs or os.cpu_count()
                 },
                 volumes={
                     pkgroot: {'bind': '/pkg', 'mode': 'rw'},

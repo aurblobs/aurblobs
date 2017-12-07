@@ -104,8 +104,9 @@ def _list(repository):
 @click.command(short_help='Update packages in repository to latest version.')
 @click.option('--repository', callback=is_valid_repository)
 @click.option('--force', is_flag=True, default=False,
-              help='Bypass up-to-date check')
-def update(force, repository):
+              help='Bypass up-to-date check.')
+@click.option('--jobs', type=int, help='Number of jobs to run builds with.')
+def update(repository, force, jobs):
     if repository:
         repositories = [repository]
     else:
@@ -113,7 +114,10 @@ def update(force, repository):
 
     for repository in repositories:
         for pkg in repository.packages:
-            pkg.update(force)
+            pkg.update(
+                force=force,
+                jobs=jobs
+            )
             repository.save()
 
 

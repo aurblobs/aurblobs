@@ -8,6 +8,7 @@ COPY sudoers /etc/sudoers
 RUN useradd -m build
 
 ENV USER_ID 1000
+ENV JOBS 2
 
 COPY entry.sh /entry.sh
 
