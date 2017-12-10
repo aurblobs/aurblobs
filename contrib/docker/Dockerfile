@@ -1,4 +1,4 @@
-FROM fleaz/arch-multilib
+FROM aurblobs/arch-multilib
 
 RUN pacman -Sy --noconfirm autoconf automake binutils bison fakeroot file \
 	findutils flex gawk gcc gettext grep groff gzip libtool m4 make \
