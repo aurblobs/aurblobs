@@ -4,6 +4,8 @@ set -e
 
 gpg --import /privkey.gpg
 
+sudo pacman -Sy
+
 cd /pkg
 makepkg -fs --noconfirm --sign MAKEFLAGS=-j$JOBS
 

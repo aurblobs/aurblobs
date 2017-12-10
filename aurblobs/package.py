@@ -10,7 +10,7 @@ import docker
 import git
 import requests
 
-from .constants import PROJECT_NAME, DOCKER_IMAGE
+from .constants import PROJECT_NAME, DOCKER_IMAGE, PACMAN_SYNC_CACHE_DIR
 
 
 class Package:
@@ -145,9 +145,22 @@ class Package:
                     "JOBS": jobs or os.cpu_count()
                 },
                 volumes={
-                    pkgroot: {'bind': '/pkg', 'mode': 'rw'},
-                    self.repository.basedir: {'bind': '/repo', 'mode': 'rw'},
-                    signing_key: {'bind': '/privkey.gpg', 'mode': 'ro'}
+                    pkgroot: {
+                        'bind': '/pkg',
+                        'mode': 'rw'
+                    },
+                    self.repository.basedir: {
+                        'bind': '/repo',
+                        'mode': 'rw'
+                    },
+                    signing_key: {
+                        'bind': '/privkey.gpg',
+                        'mode': 'ro'
+                    },
+                    PACMAN_SYNC_CACHE_DIR: {
+                        'bind': '/var/lib/pacman/sync',
+                        'mode': 'rw'
+                    }
                 }
             )
         except requests.exceptions.ConnectionError as ex:

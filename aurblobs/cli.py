@@ -5,10 +5,12 @@ from pathlib import Path
 import click
 
 from . import __VERSION__
-from .constants import CONFIG_DIR, CACHE_DIR, PROJECT_NAME
+from .constants import (
+    CONFIG_DIR, CACHE_DIR, PACMAN_SYNC_CACHE_DIR, PROJECT_NAME
+)
 from .repository import Repository
 
-for directory in [CONFIG_DIR, CACHE_DIR]:
+for directory in [CONFIG_DIR, CACHE_DIR, PACMAN_SYNC_CACHE_DIR]:
     try:
         os.mkdir(directory)
     except FileExistsError:

@@ -12,8 +12,16 @@ ENV JOBS 2
 
 COPY entry.sh /entry.sh
 
-VOLUME ["/pkgroot"]
+# package build root (contains PKGBUILD instruction file)
+VOLUME ["/pkg"]
+
+# repository basedir
 VOLUME ["/repository"]
+
+# repository signing key
 VOLUME ["/privkey.gpg"]
+
+# where pacman downloads repository databases to
+VOLUME ["/var/lib/pacman/sync"]
 
 CMD usermod -u $USER_ID build && su -c /entry.sh build
