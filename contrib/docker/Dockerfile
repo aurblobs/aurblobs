@@ -1,8 +1,8 @@
 FROM aurblobs/arch-multilib
 
 RUN pacman -Sy --noconfirm autoconf automake binutils bison fakeroot file \
-	findutils flex gawk gcc gettext grep groff gzip libtool m4 make \
-	pacman patch pkg-config sed sudo texinfo util-linux which git perl gnupg xdelta3
+	flex gawk gcc gettext grep groff libtool m4 make patch pkg-config \
+	sudo texinfo util-linux which git xdelta3
 
 COPY sudoers /etc/sudoers
 RUN useradd -m build
