@@ -49,7 +49,10 @@ class Package:
         # string might be determined at build time
         return self.commit != commit
 
-    def update(self, force=False, jobs=None):
+    def update(self, buildopts=None, force=False):
+        if not buildopts:
+            buildopts = {}
+
         with TemporaryDirectory(prefix=PROJECT_NAME, suffix=self.name) as basedir:
             pkgroot = os.path.join(basedir, '{0}.git'.format(self.name))
             pkgrepo = git.Repo.clone_from(
@@ -63,7 +66,8 @@ class Package:
                         self.fullname, self.commit, head
                     ))
 
-                if self.build(pkgroot, jobs):
+                buildopts['pkgroot'] = pkgroot
+                if self.build(**buildopts):
                     click.echo(
                         '{0}: package build complete'.format(self.fullname)
                     )
@@ -126,11 +130,25 @@ class Package:
 
         return False
 
-    def build(self, pkgroot, jobs=None):
+    def build(self, pkgroot, pkgcache=None, jobs=None):
+        click.echo('{0}: starting build'.format(self.fullname))
+
         signing_key = self.repository.signing_key_file()
         timestamp = '{:%H-%M-%s}'.format(datetime.datetime.now())
 
-        click.echo('{0}: starting build'.format(self.fullname))
+        volumes = {
+            pkgroot:
+                {'bind': '/pkg', 'mode': 'rw'},
+            signing_key:
+                {'bind': '/privkey.gpg', 'mode': 'ro'},
+            self.repository.basedir:
+                {'bind': '/repo', 'mode': 'rw'},
+            PACMAN_SYNC_CACHE_DIR:
+                {'bind': '/var/lib/pacman/sync', 'mode': 'rw'},
+        }
+
+        if pkgcache:
+            volumes[pkgcache] = {'bind': '/var/cache/pacman/pkg', 'mode': 'rw'}
 
         client = docker.from_env()
         # remove=True only removed for debugging purposes in this early stage.
@@ -144,24 +162,7 @@ class Package:
                     "USER_ID": os.getuid(),
                     "JOBS": jobs or os.cpu_count()
                 },
-                volumes={
-                    pkgroot: {
-                        'bind': '/pkg',
-                        'mode': 'rw'
-                    },
-                    self.repository.basedir: {
-                        'bind': '/repo',
-                        'mode': 'rw'
-                    },
-                    signing_key: {
-                        'bind': '/privkey.gpg',
-                        'mode': 'ro'
-                    },
-                    PACMAN_SYNC_CACHE_DIR: {
-                        'bind': '/var/lib/pacman/sync',
-                        'mode': 'rw'
-                    }
-                }
+                volumes=volumes
             )
         except requests.exceptions.ConnectionError as ex:
             click.echo(

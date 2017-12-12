@@ -3,6 +3,7 @@ import sys
 from pathlib import Path
 
 import click
+from tempfile import TemporaryDirectory
 
 from . import __VERSION__
 from .constants import (
@@ -114,13 +115,17 @@ def update(repository, force, jobs):
     else:
         repositories = [Repository(name) for name in available_repositories]
 
-    for repository in repositories:
-        for pkg in repository.packages:
-            pkg.update(
-                force=force,
-                jobs=jobs
-            )
-            repository.save()
+    with TemporaryDirectory(prefix=PROJECT_NAME, suffix='pkgs') as pkgcache:
+        for repository in repositories:
+            for pkg in repository.packages:
+                pkg.update(
+                    force=force,
+                    buildopts=dict(
+                        jobs=jobs,
+                        pkgcache=pkgcache
+                    )
+                )
+                repository.save()
 
 
 cli.add_command(init)
