@@ -15,7 +15,7 @@ here = os.path.abspath(os.path.dirname(__file__))
 
 
 # use README as long description
-with codecs.open(os.path.join(here, 'README.md'), encoding='utf-8') as handle:
+with codecs.open(os.path.join(here, 'README.rst'), encoding='utf-8') as handle:
     long_description = handle.read()
 
 # required dependencies
@@ -37,11 +37,10 @@ setup(
     long_description=long_description,
     author='Martin Weinelt',
     author_email='martin+aurblobs@linuxlounge.net',
-    url='https://www.github.com/mweinelt/aurblobs',
+    url='https://www.github.com/aurblobs/aurblobs',
     license='AGPL',
     install_requires=required,
     packages=find_packages(),
-    include_package_data=True,
     entry_points={
         'console_scripts': ['aurblobs=aurblobs:cli']
     },

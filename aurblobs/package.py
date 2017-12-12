@@ -1,7 +1,7 @@
 import datetime
 import os
-import tarfile
 import sys
+import tarfile
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -10,7 +10,7 @@ import docker
 import git
 import requests
 
-from .constants import PROJECT_NAME, DOCKER_IMAGE
+from .constants import PROJECT_NAME, DOCKER_IMAGE, PACMAN_SYNC_CACHE_DIR
 
 
 class Package:
@@ -31,6 +31,10 @@ class Package:
         # deduplicate packages by name
         return hash(self.name)
 
+    @property
+    def fullname(self):
+        return '{0}/{1}'.format(self.repository.name, self.name)
+
     def aur_pkg_url(self):
         return 'https://aur.archlinux.org/packages/{0}/'.format(self.name)
 
@@ -41,11 +45,14 @@ class Package:
         return requests.head(self.aur_pkg_url()).status_code != 404
 
     def is_new(self, commit):
-        # we can only compare git hashes of the repository, a new version string
-        # might be determined at build time
+        # we can only compare git hashes of the repository, a new version
+        # string might be determined at build time
         return self.commit != commit
 
-    def update(self, force=False):
+    def update(self, buildopts=None, force=False):
+        if not buildopts:
+            buildopts = {}
+
         with TemporaryDirectory(prefix=PROJECT_NAME, suffix=self.name) as basedir:
             pkgroot = os.path.join(basedir, '{0}.git'.format(self.name))
             pkgrepo = git.Repo.clone_from(
@@ -55,42 +62,93 @@ class Package:
             head = str(pkgrepo.head.commit)
             if force or self.is_new(head):
                 if self.commit != head:
-                    click.echo('{0} PKGBUILD updated from {1} to {2}'.format(
-                        self.name, self.commit, head
+                    click.echo('{0}: PKGBUILD updated from {1} to {2}'.format(
+                        self.fullname, self.commit, head
                     ))
 
-                if self.build(pkgroot):
-                    click.echo('package {0} build complete'.format(self.name))
-                    self.commit = head
+                buildopts['pkgroot'] = pkgroot
+                if self.build(**buildopts):
+                    click.echo(
+                        '{0}: package build complete'.format(self.fullname)
+                    )
 
-                    new_pkgs = self.get_pkg_names(pkgroot)
-                    if not self.pkgs:
-                        pkgdiff = set(new_pkgs.keys()).difference(set(self.pkgs.keys()))
-                        if pkgdiff:
-                            click.echo('package {0} did not update [{1}]'.format(
-                                self.name, ', '.join(pkgdiff)
+                    resulting_pkgs = self.get_pkg_names(pkgroot)
+
+                    # show new packages, that did not exist before
+                    new = [pkgname for pkgname in resulting_pkgs.keys()
+                           if pkgname not in self.pkgs]
+                    if new:
+                        click.echo('  new:')
+                        for pkgname in new:
+                            click.echo('    - {0} ({1})'.format(
+                                pkgname, resulting_pkgs[pkgname]['version']
                             ))
 
-                    print("before", self.pkgs)
-                    self.pkgs = new_pkgs
-                    print("after ", self.pkgs)
+                    # show upgraded packages, where the version string changed
+                    upgraded = [
+                        pkgname for pkgname, pkginfo in resulting_pkgs.items()
+                        if pkgname in self.pkgs
+                        and self.pkgs[pkgname]['version'] != pkginfo['version']
+                    ]
+                    if upgraded:
+                        click.echo('  upgraded:')
+                        for pkgname in upgraded:
+                            click.echo('    - {0} ({1} → {2})'.format(
+                                pkgname,
+                                self.pkgs[pkgname]['version'],
+                                resulting_pkgs[pkgname]['version'],
+                            ))
+
+                    # show old packages that were not rebuilt
+                    # TODO: remove these packages from the repository
+                    dangling = [
+                        pkgname for pkgname in self.pkgs.keys()
+                        if pkgname not in resulting_pkgs
+                    ]
+                    if dangling:
+                        click.echo('  dangling:')
+                        for pkgname in dangling:
+                            click.echo(
+                                '    - {0} ({1}): {2}'.format(
+                                    pkgname,
+                                    self.pkgs[pkgname]['version'],
+                                    self.pkgs[pkgname]['file']
+                                )
+                            )
+
+                    self.commit = head
+                    self.pkgs = resulting_pkgs
                 else:
                     click.echo(
-                        'package {0} did not build. check the build log for '
-                        'errors.'.format(self.name),
+                        '{0}: build unsuccessful check the build log for '
+                        'errors.'.format(self.fullname),
                         file=sys.stderr
                     )
 
             else:
-                click.echo('{0} is up-to-date'.format(self.name))
+                click.echo('{0} is up-to-date'.format(self.fullname))
 
         return False
 
-    def build(self, pkgroot):
+    def build(self, pkgroot, pkgcache=None, jobs=None):
+        click.echo('{0}: starting build'.format(self.fullname))
+
         signing_key = self.repository.signing_key_file()
         timestamp = '{:%H-%M-%s}'.format(datetime.datetime.now())
 
-        click.echo('Building {0}...'.format(self.name))
+        volumes = {
+            pkgroot:
+                {'bind': '/pkg', 'mode': 'rw'},
+            signing_key:
+                {'bind': '/privkey.gpg', 'mode': 'ro'},
+            self.repository.basedir:
+                {'bind': '/repo', 'mode': 'rw'},
+            PACMAN_SYNC_CACHE_DIR:
+                {'bind': '/var/lib/pacman/sync', 'mode': 'rw'},
+        }
+
+        if pkgcache:
+            volumes[pkgcache] = {'bind': '/var/cache/pacman/pkg', 'mode': 'rw'}
 
         client = docker.from_env()
         # remove=True only removed for debugging purposes in this early stage.
@@ -101,13 +159,10 @@ class Package:
                 detach=True,
                 environment={
                     "REPO_NAME": self.repository.name,
-                    "USER_ID": os.getuid()
+                    "USER_ID": os.getuid(),
+                    "JOBS": jobs or os.cpu_count()
                 },
-                volumes={
-                    pkgroot: {'bind': '/pkg', 'mode': 'rw'},
-                    self.repository.basedir: {'bind': '/repo', 'mode': 'rw'},
-                    signing_key: {'bind': '/privkey.gpg', 'mode': 'ro'}
-                }
+                volumes=volumes
             )
         except requests.exceptions.ConnectionError as ex:
             click.echo(

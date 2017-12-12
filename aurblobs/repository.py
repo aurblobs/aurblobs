@@ -2,6 +2,7 @@ import json
 import os
 import sys
 from tempfile import TemporaryDirectory
+from pkg_resources import parse_version
 
 import gnupg
 import click
@@ -42,7 +43,7 @@ class Repository:
                 'Repository with that name already exists',
                 file=sys.stderr
             )
-            return
+            sys.exit(1)
 
         # verify the basedir does not exist
         if os.path.exists(basedir):
@@ -50,27 +51,39 @@ class Repository:
                 'Basedir already exists',
                 file=sys.stderr
             )
-            return
-
-        # verify we can write to roots parent
-        if not os.access(os.path.join(basedir, '..'), os.W_OK):
-            click.echo(
-                'Unable to create basedir, no write permissions.',
-                file=sys.stderr
-            )
+            sys.exit(1)
 
         # create basedir
-        os.mkdir(basedir)
+        try:
+            os.mkdir(basedir)
+        except PermissionError:
+            click.echo(
+                'Unable to create basedir, no write permissions',
+                file=sys.stderr
+            )
+            sys.exit(1)
 
         # create gpg signing key
         with TemporaryDirectory() as basedir:
             gpg = gnupg.GPG(homedir=basedir)
-            input_data = gpg.gen_key_input(
-                key_type='eddsa', key_length=521, key_curve='Ed25519',
-                key_usage='sign', expire_date=0, name_email=mail,
-                name_real='{0} repository key'.format(name),
-                testing=True  # don't protect the key
-            )
+            gpg_version_string = gpg.binary_version.split('\\n')[0]
+
+            # default to Ed25519, fallback to RSA for GPG versions before 2.1.0
+            if parse_version(gpg_version_string) >= parse_version('2.1.0'):
+                input_data = gpg.gen_key_input(
+                    key_type='eddsa', key_length=521, key_curve='Ed25519',
+                    key_usage='sign', expire_date=0, name_email=mail,
+                    name_real='{0} repository key'.format(name),
+                    testing=True  # don't protect the key
+                )
+            else:
+                input_data = gpg.gen_key_input(
+                    key_type='rsa', key_length=4096,
+                    key_usage='sign', expire_date=0, name_email=mail,
+                    name_real='{0} repository key'.format(name),
+                    testing=True  # don't protect the key
+                )
+
             key = gpg.gen_key(input_data)
 
             # copy public key to repository basedir
