@@ -43,7 +43,7 @@ class Repository:
                 'Repository with that name already exists',
                 file=sys.stderr
             )
-            return
+            sys.exit(1)
 
         # verify the basedir does not exist
         if os.path.exists(basedir):
@@ -51,17 +51,17 @@ class Repository:
                 'Basedir already exists',
                 file=sys.stderr
             )
-            return
-
-        # verify we can write to roots parent
-        if not os.access(os.path.join(basedir, '..'), os.W_OK):
-            click.echo(
-                'Unable to create basedir, no write permissions.',
-                file=sys.stderr
-            )
+            sys.exit(1)
 
         # create basedir
-        os.mkdir(basedir)
+        try:
+            os.mkdir(basedir)
+        except PermissionError:
+            click.echo(
+                'Unable to create basedir, no write permissions',
+                file=sys.stderr
+            )
+            sys.exit(1)
 
         # create gpg signing key
         with TemporaryDirectory() as basedir:
