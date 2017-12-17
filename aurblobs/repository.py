@@ -2,12 +2,16 @@ import json
 import os
 import sys
 from tempfile import TemporaryDirectory
+
+import datetime
+import docker
+import requests
 from pkg_resources import parse_version
 
 import gnupg
 import click
 
-from .constants import CONFIG_DIR, CACHE_DIR
+from .constants import CONFIG_DIR, CACHE_DIR, DOCKER_IMAGE, PROJECT_NAME
 from .package import Package
 
 
@@ -203,19 +207,113 @@ class Repository:
         self.packages.add(pkg)
         self.save()
 
-    def remove(self, pkgname):
-        pkg = list(filter(
-            lambda o: o.name == pkgname.lower(),
-            self.packages)
-        ).pop()
+    def sign_and_add(self, pkgroot):
+        timestamp = '{:%H-%M-%s}'.format(datetime.datetime.now())
 
-        if not pkg:
-            click.echo("package not found", file=sys.stderr)
-            return
+        volumes = {
+            pkgroot:
+                {'bind': '/pkg', 'mode': 'rw'},
+            self.signing_key_file():
+                {'bind': '/privkey.gpg', 'mode': 'ro'},
+            self.basedir:
+                {'bind': '/repo', 'mode': 'rw'},
+        }
 
-        # TODO: implement package removal
-        click.echo('Implementation missing', file=sys.stderr)
-        # prompt y/N
-        # repo-remove
-        # remove from config & state
-        # save
+        client = docker.from_env()
+        try:
+            container = client.containers.run(
+                image=DOCKER_IMAGE,
+                entrypoint="/bin/sh -c "
+                           "'usermod -u $USER_ID build && "
+                           " su -c /sign.sh build'",
+                name='{0}_sign_{1}_{2}'.format(
+                    PROJECT_NAME, self.name, timestamp),
+                detach=True,
+                environment={
+                    "REPO_NAME": self.name,
+                },
+                volumes=volumes
+            )
+        except requests.exceptions.ConnectionError as ex:
+            click.echo(
+                'Unable to start container, is the docker daemon '
+                'running?\n{0}'.format(ex),
+                file=sys.stderr
+            )
+            sys.exit(1)
+
+        for line in container.logs(stream=True):
+            print('\t{0}'.format(line.decode().rstrip('\n')))
+
+        return container.wait() == 0
+
+    def remove_and_sign(self, pkgname):
+        try:
+            pkg = list(filter(
+                lambda o: o.name == pkgname.lower(),
+                self.packages)
+            ).pop()
+        except IndexError:
+            click.echo(
+                "Package {0} not found.".format(pkgname),
+                file=sys.stderr
+            )
+            sys.exit(1)
+
+        # TODO: prompt y/N
+
+        if not pkg.pkgs:
+            self.packages.remove(pkg)
+            self.save()
+            click.echo(
+                "Package {0} successfully removed.".format(pkgname)
+            )
+            sys.exit(0)
+
+        timestamp = '{:%H-%M-%s}'.format(datetime.datetime.now())
+        volumes = {
+            self.signing_key_file():
+                {'bind': '/privkey.gpg', 'mode': 'ro'},
+            self.basedir:
+                {'bind': '/repo', 'mode': 'rw'},
+        }
+
+        client = docker.from_env()
+        try:
+            container = client.containers.run(
+                image=DOCKER_IMAGE,
+                entrypoint="/bin/sh -c "
+                           "'usermod -u $USER_ID build && "
+                           " su -c /remove.sh build'",
+                name='{0}_sign_{1}_{2}'.format(
+                    PROJECT_NAME, self.name, timestamp),
+                detach=True,
+                environment={
+                    "REPO_NAME": self.name,
+                    "PKGNAMES": ' '.join(pkg.pkgs.keys())
+                },
+                volumes=volumes
+            )
+        except requests.exceptions.ConnectionError as ex:
+            click.echo(
+                'Unable to start container, is the docker daemon '
+                'running?\n{0}'.format(ex),
+                file=sys.stderr
+            )
+            sys.exit(1)
+
+        for line in container.logs(stream=True):
+            print('\t{0}'.format(line.decode().rstrip('\n')))
+
+        if container.wait() == 0:
+            self.packages.remove(pkg)
+            self.save()
+            click.echo(
+                "Package successfully removed."
+            )
+        else:
+            click.echo(
+                "There were errors while removing '{0}'.".format(pkgname),
+                file=sys.stderr
+            )
+            sys.exit(1)

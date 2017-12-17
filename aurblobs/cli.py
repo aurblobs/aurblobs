@@ -76,7 +76,7 @@ def remove(repository, package):
         repository = Repository(available_repositories[0])
 
     # TODO: Implementation missing
-    repository.remove(package)
+    repository.remove_and_sign(package)
 
 
 @click.command('list', short_help='List repositories and related packages')

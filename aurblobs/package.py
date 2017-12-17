@@ -72,6 +72,13 @@ class Package:
                         '{0}: package build complete'.format(self.fullname)
                     )
 
+                    self.repository.sign_and_add(pkgroot)
+                    click.echo(
+                        '{0}: package signed and repository updated'.format(
+                            self.fullname
+                        )
+                    )
+
                     resulting_pkgs = self.get_pkg_names(pkgroot)
 
                     # show new packages, that did not exist before
@@ -133,14 +140,11 @@ class Package:
     def build(self, pkgroot, pkgcache=None, jobs=None):
         click.echo('{0}: starting build'.format(self.fullname))
 
-        signing_key = self.repository.signing_key_file()
         timestamp = '{:%H-%M-%s}'.format(datetime.datetime.now())
 
         volumes = {
             pkgroot:
                 {'bind': '/pkg', 'mode': 'rw'},
-            signing_key:
-                {'bind': '/privkey.gpg', 'mode': 'ro'},
             self.repository.basedir:
                 {'bind': '/repo', 'mode': 'rw'},
             PACMAN_SYNC_CACHE_DIR:
@@ -155,19 +159,21 @@ class Package:
         try:
             container = client.containers.run(
                 image=DOCKER_IMAGE,
-                name='{0}_{1}_{2}'.format(PROJECT_NAME, self.name, timestamp),
+                command="/bin/sh -c "
+                        "'usermod -u 1000 build &&"
+                        " su -c /build.sh build'",
+                name='{0}_build_{1}_{2}'.format(
+                    PROJECT_NAME, self.name, timestamp),
                 detach=True,
                 environment={
-                    "REPO_NAME": self.repository.name,
-                    "USER_ID": os.getuid(),
                     "JOBS": jobs or os.cpu_count()
                 },
                 volumes=volumes
             )
         except requests.exceptions.ConnectionError as ex:
             click.echo(
-                'Unable to start build container, is the docker daemon '
-                'running?\n{0}'.format(ex),
+                'Unable to start container, is the docker daemon running?\n'
+                '{0}'.format(ex),
                 file=sys.stderr
             )
             sys.exit(1)

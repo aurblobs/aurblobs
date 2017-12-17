@@ -12,7 +12,7 @@ RUN useradd -m build
 ENV USER_ID 1000
 ENV JOBS 2
 
-COPY entry.sh /entry.sh
+COPY build.sh sign.sh remove.sh /
 
 # package build root (contains PKGBUILD instruction file)
 VOLUME ["/pkg"]
@@ -26,4 +26,4 @@ VOLUME ["/privkey.gpg"]
 # where pacman downloads repository databases to
 VOLUME ["/var/lib/pacman/sync"]
 
-CMD usermod -u $USER_ID build && su -c /entry.sh build
+CMD usermod -u $USER_ID build && su -c /build.sh build
