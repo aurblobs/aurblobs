@@ -230,6 +230,7 @@ class Repository:
                     PROJECT_NAME, self.name, timestamp),
                 detach=True,
                 environment={
+                    "USER_ID": os.getuid(),
                     "REPO_NAME": self.name,
                 },
                 volumes=volumes
@@ -289,6 +290,7 @@ class Repository:
                     PROJECT_NAME, self.name, timestamp),
                 detach=True,
                 environment={
+                    "USER_ID": os.getuid(),
                     "REPO_NAME": self.name,
                     "PKGNAMES": ' '.join(pkg.pkgs.keys())
                 },

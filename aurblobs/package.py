@@ -160,12 +160,13 @@ class Package:
             container = client.containers.run(
                 image=DOCKER_IMAGE,
                 command="/bin/sh -c "
-                        "'usermod -u 1000 build &&"
+                        "'usermod -u $USER_ID build &&"
                         " su -c /build.sh build'",
                 name='{0}_build_{1}_{2}'.format(
                     PROJECT_NAME, self.name, timestamp),
                 detach=True,
                 environment={
+                    "USER_ID": os.getuid(),
                     "JOBS": jobs or os.cpu_count()
                 },
                 volumes=volumes
