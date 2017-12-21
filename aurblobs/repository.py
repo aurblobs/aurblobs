@@ -109,13 +109,14 @@ class Repository:
                 config = json.load(handle)
         except FileNotFoundError:
             click.echo(
-                'Repository configuration with that name does not exist.',
+                '{0}: config file does not exist, exiting.'.format(self.name),
                 file=sys.stderr
             )
             sys.exit(1)
-        except json.decoder.JSONDecodeError:
+        except json.decoder.JSONDecodeError as ex:
             click.echo(
-                'Repository configuration is corrupt.',
+                '{0}: config file is damaged, exiting. ({1})'.format(
+                    self.name, ex),
                 file=sys.stderr
             )
             sys.exit(1)
@@ -194,13 +195,15 @@ class Repository:
         for pkg in self.packages:
             if pkg.name == pkgname:
                 click.echo(
-                    'package already configured',
+                    '{0}: package {1} already configured'.format(
+                        self.name, pkg.name),
                     file=sys.stderr
                 )
                 return
             elif pkgname in pkg.pkgs.keys():
                 click.echo(
-                    'package is already configured as a part of pkg "{0}"'.format(pkgname),
+                    '{0}: package {1} is already configured as a part of {2}'.format(
+                        self.name, pkgname, pkg.name),
                     file=sys.stderr
                 )
                 return
@@ -208,7 +211,10 @@ class Repository:
         # create package instance
         pkg = Package(self, pkgname)
         if not pkg.exists():
-            click.echo('package does not exist in AUR', file=sys.stderr)
+            click.echo(
+                'package {0} does not exist in AUR'.format(pkg.name),
+                file=sys.stderr
+            )
             sys.exit(1)
 
         # add package to repository
@@ -275,7 +281,8 @@ class Repository:
             self.packages.remove(pkg)
             self.save()
             click.echo(
-                "Package {0} successfully removed.".format(pkgname)
+                "{0}: package {1} successfully removed.".format(
+                    self.name, pkgname)
             )
             sys.exit(0)
 
