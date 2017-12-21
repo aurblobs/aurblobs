@@ -124,14 +124,18 @@ class Repository:
             with open(self.state_file()) as handle:
                 state = json.load(handle)
         except FileNotFoundError:
+            state = {}
             click.echo(
-                'Repository state file does not exist, giving up!',
+                '{0}: state file does not exist, assuming no state exists.'.format(
+                    self.name
+                ),
                 file=sys.stderr
             )
-            sys.exit(1)
-        except json.decoder.JSONDecodeError:
+        except json.decoder.JSONDecodeError as ex:
             click.echo(
-                'Repository state is corrupt.',
+                '{0}: state file is damaged, exiting. ({1}).'.format(
+                    self.name, ex
+                ),
                 file=sys.stderr
             )
             sys.exit(1)
