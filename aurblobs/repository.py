@@ -16,6 +16,8 @@ from .package import Package
 
 
 class Repository:
+    vcs_rebuild_age = 7 * 86400
+
     def __init__(self, name=None):
         try:
             self.name = name.lower()
@@ -140,14 +142,15 @@ class Repository:
             try:
                 pkgstate = state['pkgs'][package]
             except KeyError:
-                pkgstate = None
+                pkgstate = {}
 
             self.packages.add(
                 Package(
                     repository=self,
                     name=package,
-                    commit=pkgstate['commit'] if pkgstate else None,
-                    pkgs=pkgstate['pkgs']
+                    commit=pkgstate.get('commit', None),
+                    pkgs=pkgstate.get('pkgs', None),
+                    updated=pkgstate.get('updated', None)
                 )
             )
 
@@ -169,6 +172,7 @@ class Repository:
             'pkgs': {
                 pkg.name: {
                     'commit': pkg.commit,
+                    'updated': pkg.updated,
                     'pkgs': {
                         pkgname: pkgver for pkgname, pkgver in pkg.pkgs.items()
                     }

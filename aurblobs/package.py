@@ -2,6 +2,7 @@ import datetime
 import os
 import sys
 import tarfile
+import time
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -14,13 +15,14 @@ from .constants import PROJECT_NAME, DOCKER_IMAGE, PACMAN_SYNC_CACHE_DIR
 
 
 class Package:
-    def __init__(self, repository, name, commit=None, pkgs=None):
+    def __init__(self, repository, name, commit=None, updated=None, pkgs=None):
         # back-reference to the repository this package is being served in
         self.repository = repository
 
         # name and known git commit hash of the AUR package
         self.name = name
         self.commit = commit
+        self.updated = updated
 
         # map of packages & package versions created during the build process
         if not pkgs:
@@ -44,10 +46,36 @@ class Package:
     def exists(self):
         return requests.head(self.aur_pkg_url()).status_code != 404
 
-    def is_new(self, commit):
-        # we can only compare git hashes of the repository, a new version
-        # string might be determined at build time
-        return self.commit != commit
+    def is_vcs(self):
+        return self.name.endswith((
+            '-cvs', '-svn', '-git', '-hg', '-bzr', '-darcs'
+        ))
+
+    def needs_rebuild(self, head, force=False):
+        if force:
+            return True
+        if self.commit != head:
+            click.echo('{0}: PKGBUILD updated from {1} to {2}'.format(
+                self.fullname, self.commit, head
+            ))
+            return True
+        if self.is_vcs():
+            if not self.updated:
+                click.echo(
+                    '{0}: rebuilding vcs package due to missing build '
+                    'timestamp.'.format(self.fullname)
+                )
+                return True
+            pkg_age = (int(time.time()) - self.updated)
+            if pkg_age >= self.repository.vcs_rebuild_age:
+                click.echo(
+                    '{0}: regularly rebuild for vcs package triggered'.format(
+                        self.fullname
+                    )
+                )
+                return True
+        click.echo('{0} is up-to-date'.format(self.fullname))
+        return False
 
     def update(self, buildopts=None, force=False):
         if not buildopts:
@@ -60,12 +88,7 @@ class Package:
             )
 
             head = str(pkgrepo.head.commit)
-            if force or self.is_new(head):
-                if self.commit != head:
-                    click.echo('{0}: PKGBUILD updated from {1} to {2}'.format(
-                        self.fullname, self.commit, head
-                    ))
-
+            if self.needs_rebuild(head, force):
                 buildopts['pkgroot'] = pkgroot
                 if self.build(**buildopts):
                     click.echo(
@@ -124,6 +147,7 @@ class Package:
                             )
 
                     self.commit = head
+                    self.updated = int(time.time())
                     self.pkgs = resulting_pkgs
                 else:
                     click.echo(
@@ -131,9 +155,6 @@ class Package:
                         'errors.'.format(self.fullname),
                         file=sys.stderr
                     )
-
-            else:
-                click.echo('{0} is up-to-date'.format(self.fullname))
 
         return False
 
