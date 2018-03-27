@@ -203,7 +203,7 @@ class Package:
         for line in container.logs(stream=True):
             print('\t{0}'.format(line.decode().rstrip('\n')))
 
-        return container.wait() == 0
+        return container.wait()['StatusCode'] == 0
 
     @staticmethod
     def get_pkg_names(pkgroot):

@@ -21,7 +21,7 @@ with codecs.open(os.path.join(here, 'README.rst'), encoding='utf-8') as handle:
 # required dependencies
 required = [
     'click',
-    'docker',
+    'docker>=3.0.0',
     'GitPython',
     'gnupg',
     'requests',
