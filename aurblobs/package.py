@@ -167,7 +167,7 @@ class Package:
             pkgroot:
                 {'bind': '/pkg', 'mode': 'rw'},
             self.repository.basedir:
-                {'bind': '/repo', 'mode': 'rw'},
+                {'bind': '/repo', 'mode': 'ro'},
             PACMAN_SYNC_CACHE_DIR:
                 {'bind': '/var/lib/pacman/sync', 'mode': 'rw'},
         }
@@ -188,7 +188,8 @@ class Package:
                 detach=True,
                 environment={
                     "USER_ID": os.getuid(),
-                    "JOBS": jobs or os.cpu_count()
+                    "JOBS": jobs or os.cpu_count(),
+                    "REPO_NAME": self.repository.name,
                 },
                 volumes=volumes
             )

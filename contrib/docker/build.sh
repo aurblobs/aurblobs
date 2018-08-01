@@ -2,6 +2,12 @@
 
 set -e
 
+cat << EOF | sudo tee --append /etc/pacman.conf
+[${REPO_NAME}]
+SigLevel = Never
+Server = file:///repo
+EOF
+
 sudo pacman -Sy
 
 cd /pkg

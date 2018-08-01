@@ -9,7 +9,7 @@ name = "pypi"
 
 requests = "*"
 gitpython = "*"
-docker = "*"
+docker = ">=3.0"
 xdg = "*"
 click = "*"
 gnupg = "*"
