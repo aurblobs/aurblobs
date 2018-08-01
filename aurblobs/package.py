@@ -167,7 +167,7 @@ class Package:
             pkgroot:
                 {'bind': '/pkg', 'mode': 'rw'},
             self.repository.basedir:
-                {'bind': '/repo', 'mode': 'rw'},
+                {'bind': '/repo', 'mode': 'ro'},
             PACMAN_SYNC_CACHE_DIR:
                 {'bind': '/var/lib/pacman/sync', 'mode': 'rw'},
         }
