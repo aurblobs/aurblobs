@@ -39,6 +39,8 @@ class Repository:
         return os.path.join(CONFIG_DIR, '{0}.gpg'.format(self.name))
 
     def create(self, name, basedir, mail):
+        timestamp = '{:%H-%M-%s}'.format(datetime.datetime.now())
+
         self.name = name.lower()
         self.basedir = basedir
 
@@ -100,8 +102,53 @@ class Repository:
             with open(self.signing_key_file(), 'w') as handle:
                 handle.write(gpg.export_keys(key, True))
 
-        # persist configuration
-        self.save()
+        # initialize the empty repository
+        volumes = {
+            self.signing_key_file():
+                {'bind': '/privkey.gpg', 'mode': 'ro'},
+            self.basedir:
+                {'bind': '/repo', 'mode': 'rw'},
+        }
+
+        client = docker.from_env()
+        try:
+            container = client.containers.run(
+                image=DOCKER_IMAGE,
+                entrypoint="/bin/sh -c "
+                           "'usermod -u $USER_ID build && "
+                           " su -c /init.sh build'",
+                name='{0}_sign_{1}_{2}'.format(
+                    PROJECT_NAME, self.name, timestamp),
+                detach=True,
+                environment={
+                    "USER_ID": os.getuid(),
+                    "REPO_NAME": self.name,
+                },
+                volumes=volumes
+            )
+        except requests.exceptions.ConnectionError as ex:
+            click.echo(
+                'Unable to start container, is the docker daemon '
+                'running?\n{0}'.format(ex),
+                file=sys.stderr
+            )
+            sys.exit(1)
+
+        for line in container.logs(stream=True):
+            print('\t{0}'.format(line.decode().rstrip('\n')))
+
+        if container.wait()['StatusCode'] == 0:
+            # persist configuration
+            self.save()
+            click.echo(
+                "Repositry successfully initialized."
+            )
+        else:
+            click.echo(
+                "There were errors while initializing repository '{0}'.".format(self.name),
+                file=sys.stderr
+            )
+            sys.exit(1)
 
     def load(self):
         try:
@@ -260,7 +307,7 @@ class Repository:
         for line in container.logs(stream=True):
             print('\t{0}'.format(line.decode().rstrip('\n')))
 
-        return container.wait() == 0
+        return container.wait()['StatusCode'] == 0
 
     def remove_and_sign(self, pkgname):
         try:
@@ -322,7 +369,7 @@ class Repository:
         for line in container.logs(stream=True):
             print('\t{0}'.format(line.decode().rstrip('\n')))
 
-        if container.wait() == 0:
+        if container.wait()['StatusCode'] == 0:
             self.packages.remove(pkg)
             self.save()
             click.echo(

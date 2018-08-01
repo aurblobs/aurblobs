@@ -188,7 +188,8 @@ class Package:
                 detach=True,
                 environment={
                     "USER_ID": os.getuid(),
-                    "JOBS": jobs or os.cpu_count()
+                    "JOBS": jobs or os.cpu_count(),
+                    "REPO_NAME": self.repository.name,
                 },
                 volumes=volumes
             )

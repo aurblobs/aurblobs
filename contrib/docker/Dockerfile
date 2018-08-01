@@ -12,13 +12,13 @@ RUN useradd -m build
 ENV USER_ID 1000
 ENV JOBS 2
 
-COPY build.sh sign.sh remove.sh /
+COPY init.sh build.sh sign.sh remove.sh /
 
 # package build root (contains PKGBUILD instruction file)
 VOLUME ["/pkg"]
 
 # repository basedir
-VOLUME ["/repository"]
+VOLUME ["/repo"]
 
 # repository signing key
 VOLUME ["/privkey.gpg"]
