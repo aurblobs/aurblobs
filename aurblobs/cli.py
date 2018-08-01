@@ -109,7 +109,8 @@ def _list(repository):
 @click.option('--force', is_flag=True, default=False,
               help='Bypass up-to-date check.')
 @click.option('--jobs', type=int, help='Number of jobs to run builds with.')
-def update(repository, force, jobs):
+@click.argument('package', nargs=-1)
+def update(repository, force, jobs, package):
     if repository:
         repositories = [repository]
     else:
@@ -117,7 +118,12 @@ def update(repository, force, jobs):
 
     with TemporaryDirectory(prefix=PROJECT_NAME, suffix='pkgs') as pkgcache:
         for repository in repositories:
-            for pkg in repository.packages:
+            if package:
+                pkgs = {repository.find_package(p) for p in package }
+            else:
+                pkgs = repository.packages
+
+            for pkg in pkgs:
                 pkg.update(
                     force=force,
                     buildopts=dict(

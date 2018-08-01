@@ -221,6 +221,20 @@ class Repository:
         self.packages.add(pkg)
         self.save()
 
+    def find_package(self, pkgname):
+        try:
+            return list(filter(
+                lambda o: o.name == pkgname.lower(),
+                self.packages)
+            ).pop()
+        except IndexError:
+            click.echo(
+                "Package {0} not found.".format(pkgname),
+                file=sys.stderr
+            )
+            sys.exit(1)
+
+
     def sign_and_add(self, pkgroot):
         timestamp = '{:%H-%M-%s}'.format(datetime.datetime.now())
 
@@ -263,17 +277,7 @@ class Repository:
         return container.wait() == 0
 
     def remove_and_sign(self, pkgname):
-        try:
-            pkg = list(filter(
-                lambda o: o.name == pkgname.lower(),
-                self.packages)
-            ).pop()
-        except IndexError:
-            click.echo(
-                "Package {0} not found.".format(pkgname),
-                file=sys.stderr
-            )
-            sys.exit(1)
+        pkg = self.find_package(pkgname)
 
         # TODO: prompt y/N
 
