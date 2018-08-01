@@ -48,7 +48,7 @@ def init(repository, basedir, mail):
 
 @click.command(short_help='Add a new package to an existing repository.')
 @click.option('--repository', callback=is_valid_repository)
-@click.argument('package')
+@click.argument('package', nargs=-1, required=True)
 def add(package, repository=None):
     if not repository:
         if len(available_repositories) != 1:
@@ -59,7 +59,8 @@ def add(package, repository=None):
             sys.exit(1)
         repository = Repository(available_repositories[0])
 
-    repository.add(package)
+    for p in package:
+        repository.add(p)
 
 
 @click.command(short_help='Remove a package from a repository')
