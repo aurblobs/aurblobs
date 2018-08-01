@@ -64,7 +64,7 @@ def add(package, repository=None):
 
 @click.command(short_help='Remove a package from a repository')
 @click.option('--repository', callback=is_valid_repository)
-@click.argument('package')
+@click.argument('package', nargs=-1, required=True)
 def remove(repository, package):
     if not repository:
         if len(available_repositories) != 1:
@@ -76,7 +76,8 @@ def remove(repository, package):
         repository = Repository(available_repositories[0])
 
     # TODO: Implementation missing
-    repository.remove_and_sign(package)
+    for pkg in package:
+        repository.remove_and_sign(pkg)
 
 
 @click.command('list', short_help='List repositories and related packages')
