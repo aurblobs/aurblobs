@@ -1,8 +1,9 @@
 FROM aurblobs/arch-multilib
 
-RUN pacman -Sy --noconfirm autoconf automake binutils bison fakeroot file \
-	flex gawk gcc gettext grep groff libtool m4 make patch pkg-config \
-	sudo texinfo util-linux which git xdelta3
+RUN pacman -Sy --noconfirm \
+	base \
+	base-devel \
+	git xdelta3
 
 RUN rm /usr/share/libalpm/hooks/package-cleanup.hook
 
