@@ -2,16 +2,23 @@ import json
 import os
 import sys
 from tempfile import TemporaryDirectory
+from shutil import rmtree
+
+import datetime
+import docker
+import requests
 from pkg_resources import parse_version
 
-import gnupg
 import click
+from pretty_bad_protocol import gnupg
 
-from .constants import CONFIG_DIR, CACHE_DIR
+from .constants import CONFIG_DIR, CACHE_DIR, DOCKER_IMAGE, PROJECT_NAME
 from .package import Package
 
 
 class Repository:
+    vcs_rebuild_age = 7 * 86400
+
     def __init__(self, name=None):
         try:
             self.name = name.lower()
@@ -33,6 +40,8 @@ class Repository:
         return os.path.join(CONFIG_DIR, '{0}.gpg'.format(self.name))
 
     def create(self, name, basedir, mail):
+        timestamp = '{:%H-%M-%s}'.format(datetime.datetime.now())
+
         self.name = name.lower()
         self.basedir = basedir
 
@@ -94,8 +103,91 @@ class Repository:
             with open(self.signing_key_file(), 'w') as handle:
                 handle.write(gpg.export_keys(key, True))
 
-        # persist configuration
-        self.save()
+        # initialize the empty repository
+        volumes = {
+            self.signing_key_file():
+                {'bind': '/privkey.gpg', 'mode': 'ro'},
+            self.basedir:
+                {'bind': '/repo', 'mode': 'rw'},
+        }
+
+        client = docker.from_env()
+        try:
+            container = client.containers.run(
+                image=DOCKER_IMAGE,
+                entrypoint="/bin/sh -c "
+                           "'usermod -u $USER_ID build && "
+                           " su -c /init.sh build'",
+                name='{0}_sign_{1}_{2}'.format(
+                    PROJECT_NAME, self.name, timestamp),
+                detach=True,
+                environment={
+                    "USER_ID": os.getuid(),
+                    "REPO_NAME": self.name,
+                },
+                volumes=volumes
+            )
+        except requests.exceptions.ConnectionError as ex:
+            click.echo(
+                'Unable to start container, is the docker daemon '
+                'running?\n{0}'.format(ex),
+                file=sys.stderr
+            )
+            sys.exit(1)
+
+        for line in container.logs(stream=True):
+            print('\t{0}'.format(line.decode().rstrip('\n')))
+
+        if container.wait()['StatusCode'] == 0:
+            # persist configuration
+            self.save()
+            click.echo(
+                "Repositry successfully initialized."
+            )
+        else:
+            click.echo(
+                "There were errors while initializing repository '{0}'.".format(self.name),
+                file=sys.stderr
+            )
+            sys.exit(1)
+
+    def drop(self):
+        try:
+            os.remove(self.config_file())
+        except OSError as ex:
+            click.echo(
+                'Error while deleting configuration file at {0}: {1}'.format(
+                    self.config_file(), ex),
+                file=sys.stderr
+            )
+
+        try:
+            os.remove(self.signing_key_file())
+        except OSError as ex:
+            click.echo(
+                'Error while deleting signing key file at {0}: {1}'.format(
+                    self.signing_key_file(), ex),
+                file=sys.stderr
+            )
+
+        try:
+            os.remove(self.state_file())
+        except OSError as ex:
+            click.echo(
+                'Error while deleting state file at {0}: {1}'.format(
+                    self.state_file(), ex),
+                file=sys.stderr
+            )
+
+        try:
+            rmtree(self.basedir)
+        except OSError as ex:
+            click.echo(
+                'Error while deleting the repository at {0}: {1}'.format(
+                    self.basedir, ex),
+                file=sys.stderr
+            )
+
 
     def load(self):
         try:
@@ -103,13 +195,14 @@ class Repository:
                 config = json.load(handle)
         except FileNotFoundError:
             click.echo(
-                'Repository configuration with that name does not exist.',
+                '{0}: config file does not exist, exiting.'.format(self.name),
                 file=sys.stderr
             )
             sys.exit(1)
-        except json.decoder.JSONDecodeError:
+        except json.decoder.JSONDecodeError as ex:
             click.echo(
-                'Repository configuration is corrupt.',
+                '{0}: config file is damaged, exiting. ({1})'.format(
+                    self.name, ex),
                 file=sys.stderr
             )
             sys.exit(1)
@@ -118,14 +211,18 @@ class Repository:
             with open(self.state_file()) as handle:
                 state = json.load(handle)
         except FileNotFoundError:
+            state = {}
             click.echo(
-                'Repository state file does not exist, giving up!',
+                '{0}: state file does not exist, assuming no state exists.'.format(
+                    self.name
+                ),
                 file=sys.stderr
             )
-            sys.exit(1)
-        except json.decoder.JSONDecodeError:
+        except json.decoder.JSONDecodeError as ex:
             click.echo(
-                'Repository state is corrupt.',
+                '{0}: state file is damaged, exiting. ({1}).'.format(
+                    self.name, ex
+                ),
                 file=sys.stderr
             )
             sys.exit(1)
@@ -136,14 +233,15 @@ class Repository:
             try:
                 pkgstate = state['pkgs'][package]
             except KeyError:
-                pkgstate = None
+                pkgstate = {}
 
             self.packages.add(
                 Package(
                     repository=self,
                     name=package,
-                    commit=pkgstate['commit'] if pkgstate else None,
-                    pkgs=pkgstate['pkgs']
+                    commit=pkgstate.get('commit', None),
+                    pkgs=pkgstate.get('pkgs', None),
+                    updated=pkgstate.get('updated', None)
                 )
             )
 
@@ -165,6 +263,7 @@ class Repository:
             'pkgs': {
                 pkg.name: {
                     'commit': pkg.commit,
+                    'updated': pkg.updated,
                     'pkgs': {
                         pkgname: pkgver for pkgname, pkgver in pkg.pkgs.items()
                     }
@@ -182,13 +281,15 @@ class Repository:
         for pkg in self.packages:
             if pkg.name == pkgname:
                 click.echo(
-                    'package already configured',
+                    '{0}: package {1} already configured'.format(
+                        self.name, pkg.name),
                     file=sys.stderr
                 )
                 return
             elif pkgname in pkg.pkgs.keys():
                 click.echo(
-                    'package is already configured as a part of pkg "{0}"'.format(pkgname),
+                    '{0}: package {1} is already configured as a part of {2}'.format(
+                        self.name, pkgname, pkg.name),
                     file=sys.stderr
                 )
                 return
@@ -196,26 +297,130 @@ class Repository:
         # create package instance
         pkg = Package(self, pkgname)
         if not pkg.exists():
-            click.echo('package does not exist in AUR', file=sys.stderr)
+            click.echo(
+                'package {0} does not exist in AUR'.format(pkg.name),
+                file=sys.stderr
+            )
             sys.exit(1)
 
         # add package to repository
         self.packages.add(pkg)
         self.save()
 
-    def remove(self, pkgname):
-        pkg = list(filter(
-            lambda o: o.name == pkgname.lower(),
-            self.packages)
-        ).pop()
+    def find_package(self, pkgname):
+        try:
+            return list(filter(
+                lambda o: o.name == pkgname.lower(),
+                self.packages)
+            ).pop()
+        except IndexError:
+            click.echo(
+                "Package {0} not found.".format(pkgname),
+                file=sys.stderr
+            )
+            sys.exit(1)
 
-        if not pkg:
-            click.echo("package not found", file=sys.stderr)
-            return
 
-        # TODO: implement package removal
-        click.echo('Implementation missing', file=sys.stderr)
-        # prompt y/N
-        # repo-remove
-        # remove from config & state
-        # save
+    def sign_and_add(self, pkgroot):
+        timestamp = '{:%H-%M-%s}'.format(datetime.datetime.now())
+
+        volumes = {
+            pkgroot:
+                {'bind': '/pkg', 'mode': 'rw'},
+            self.signing_key_file():
+                {'bind': '/privkey.gpg', 'mode': 'ro'},
+            self.basedir:
+                {'bind': '/repo', 'mode': 'rw'},
+        }
+
+        client = docker.from_env()
+        try:
+            container = client.containers.run(
+                image=DOCKER_IMAGE,
+                entrypoint="/bin/sh -c "
+                           "'usermod -u $USER_ID build && "
+                           " su -c /sign.sh build'",
+                name='{0}_sign_{1}_{2}'.format(
+                    PROJECT_NAME, self.name, timestamp),
+                detach=True,
+                environment={
+                    "USER_ID": os.getuid(),
+                    "REPO_NAME": self.name,
+                },
+                volumes=volumes
+            )
+        except requests.exceptions.ConnectionError as ex:
+            click.echo(
+                'Unable to start container, is the docker daemon '
+                'running?\n{0}'.format(ex),
+                file=sys.stderr
+            )
+            sys.exit(1)
+
+        for line in container.logs(stream=True):
+            print('\t{0}'.format(line.decode().rstrip('\n')))
+
+        return container.wait()['StatusCode'] == 0
+
+    def remove_and_sign(self, pkgname):
+        pkg = self.find_package(pkgname)
+
+        # TODO: prompt y/N
+
+        if not pkg.pkgs:
+            self.packages.remove(pkg)
+            self.save()
+            click.echo(
+                "{0}: package {1} successfully removed.".format(
+                    self.name, pkgname)
+            )
+            sys.exit(0)
+
+        timestamp = '{:%H-%M-%s}'.format(datetime.datetime.now())
+        volumes = {
+            self.signing_key_file():
+                {'bind': '/privkey.gpg', 'mode': 'ro'},
+            self.basedir:
+                {'bind': '/repo', 'mode': 'rw'},
+        }
+
+        client = docker.from_env()
+        try:
+            container = client.containers.run(
+                image=DOCKER_IMAGE,
+                entrypoint="/bin/sh -c "
+                           "'usermod -u $USER_ID build && "
+                           " su -c /remove.sh build'",
+                name='{0}_sign_{1}_{2}'.format(
+                    PROJECT_NAME, self.name, timestamp),
+                detach=True,
+                environment={
+                    "USER_ID": os.getuid(),
+                    "REPO_NAME": self.name,
+                    "PKGNAMES": ' '.join(pkg.pkgs.keys())
+                },
+                volumes=volumes
+            )
+        except requests.exceptions.ConnectionError as ex:
+            click.echo(
+                'Unable to start container, is the docker daemon '
+                'running?\n{0}'.format(ex),
+                file=sys.stderr
+            )
+            sys.exit(1)
+
+        for line in container.logs(stream=True):
+            print('\t{0}'.format(line.decode().rstrip('\n')))
+
+        if container.wait()['StatusCode'] == 0:
+            self.packages.remove(pkg)
+            self.save()
+            click.echo(
+                "Package successfully removed."
+            )
+        else:
+            click.echo(
+                "There were errors while removing '{0}'.".format(pkgname),
+                file=sys.stderr
+            )
+            sys.exit(1)

@@ -2,6 +2,7 @@ import datetime
 import os
 import sys
 import tarfile
+import time
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -14,13 +15,14 @@ from .constants import PROJECT_NAME, DOCKER_IMAGE, PACMAN_SYNC_CACHE_DIR
 
 
 class Package:
-    def __init__(self, repository, name, commit=None, pkgs=None):
+    def __init__(self, repository, name, commit=None, updated=None, pkgs=None):
         # back-reference to the repository this package is being served in
         self.repository = repository
 
         # name and known git commit hash of the AUR package
         self.name = name
         self.commit = commit
+        self.updated = updated
 
         # map of packages & package versions created during the build process
         if not pkgs:
@@ -44,10 +46,36 @@ class Package:
     def exists(self):
         return requests.head(self.aur_pkg_url()).status_code != 404
 
-    def is_new(self, commit):
-        # we can only compare git hashes of the repository, a new version
-        # string might be determined at build time
-        return self.commit != commit
+    def is_vcs(self):
+        return self.name.endswith((
+            '-cvs', '-svn', '-git', '-hg', '-bzr', '-darcs'
+        ))
+
+    def needs_rebuild(self, head, force=False):
+        if force:
+            return True
+        if self.commit != head:
+            click.echo('{0}: PKGBUILD updated from {1} to {2}'.format(
+                self.fullname, self.commit, head
+            ))
+            return True
+        if self.is_vcs():
+            if not self.updated:
+                click.echo(
+                    '{0}: rebuilding vcs package due to missing build '
+                    'timestamp.'.format(self.fullname)
+                )
+                return True
+            pkg_age = (int(time.time()) - self.updated)
+            if pkg_age >= self.repository.vcs_rebuild_age:
+                click.echo(
+                    '{0}: regularly rebuild for vcs package triggered'.format(
+                        self.fullname
+                    )
+                )
+                return True
+        click.echo('{0} is up-to-date'.format(self.fullname))
+        return False
 
     def update(self, buildopts=None, force=False):
         if not buildopts:
@@ -60,16 +88,18 @@ class Package:
             )
 
             head = str(pkgrepo.head.commit)
-            if force or self.is_new(head):
-                if self.commit != head:
-                    click.echo('{0}: PKGBUILD updated from {1} to {2}'.format(
-                        self.fullname, self.commit, head
-                    ))
-
+            if self.needs_rebuild(head, force):
                 buildopts['pkgroot'] = pkgroot
                 if self.build(**buildopts):
                     click.echo(
                         '{0}: package build complete'.format(self.fullname)
+                    )
+
+                    self.repository.sign_and_add(pkgroot)
+                    click.echo(
+                        '{0}: package signed and repository updated'.format(
+                            self.fullname
+                        )
                     )
 
                     resulting_pkgs = self.get_pkg_names(pkgroot)
@@ -117,6 +147,7 @@ class Package:
                             )
 
                     self.commit = head
+                    self.updated = int(time.time())
                     self.pkgs = resulting_pkgs
                 else:
                     click.echo(
@@ -125,24 +156,18 @@ class Package:
                         file=sys.stderr
                     )
 
-            else:
-                click.echo('{0} is up-to-date'.format(self.fullname))
-
         return False
 
     def build(self, pkgroot, pkgcache=None, jobs=None):
         click.echo('{0}: starting build'.format(self.fullname))
 
-        signing_key = self.repository.signing_key_file()
         timestamp = '{:%H-%M-%s}'.format(datetime.datetime.now())
 
         volumes = {
             pkgroot:
                 {'bind': '/pkg', 'mode': 'rw'},
-            signing_key:
-                {'bind': '/privkey.gpg', 'mode': 'ro'},
             self.repository.basedir:
-                {'bind': '/repo', 'mode': 'rw'},
+                {'bind': '/repo', 'mode': 'ro'},
             PACMAN_SYNC_CACHE_DIR:
                 {'bind': '/var/lib/pacman/sync', 'mode': 'rw'},
         }
@@ -155,19 +180,23 @@ class Package:
         try:
             container = client.containers.run(
                 image=DOCKER_IMAGE,
-                name='{0}_{1}_{2}'.format(PROJECT_NAME, self.name, timestamp),
+                command="/bin/sh -c "
+                        "'usermod -u $USER_ID build &&"
+                        " su -c /build.sh build'",
+                name='{0}_build_{1}_{2}'.format(
+                    PROJECT_NAME, self.name, timestamp),
                 detach=True,
                 environment={
-                    "REPO_NAME": self.repository.name,
                     "USER_ID": os.getuid(),
-                    "JOBS": jobs or os.cpu_count()
+                    "JOBS": jobs or os.cpu_count(),
+                    "REPO_NAME": self.repository.name,
                 },
                 volumes=volumes
             )
         except requests.exceptions.ConnectionError as ex:
             click.echo(
-                'Unable to start build container, is the docker daemon '
-                'running?\n{0}'.format(ex),
+                'Unable to start container, is the docker daemon running?\n'
+                '{0}'.format(ex),
                 file=sys.stderr
             )
             sys.exit(1)
@@ -175,7 +204,7 @@ class Package:
         for line in container.logs(stream=True):
             print('\t{0}'.format(line.decode().rstrip('\n')))
 
-        return container.wait() == 0
+        return container.wait()['StatusCode'] == 0
 
     @staticmethod
     def get_pkg_names(pkgroot):

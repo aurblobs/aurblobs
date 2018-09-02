@@ -46,9 +46,18 @@ def init(repository, basedir, mail):
     _repository.create(repository, basedir, mail)
 
 
+@click.command(short_help='Drop a repository, it\'s configuration, state and '
+                          'signing key.')
+@click.argument('repository', callback=is_valid_repository)
+@click.confirmation_option(
+    prompt='Are you sure you want to drop the repository?')
+def drop(repository):
+    repository.drop()
+
+
 @click.command(short_help='Add a new package to an existing repository.')
 @click.option('--repository', callback=is_valid_repository)
-@click.argument('package')
+@click.argument('package', nargs=-1, required=True)
 def add(package, repository=None):
     if not repository:
         if len(available_repositories) != 1:
@@ -59,12 +68,13 @@ def add(package, repository=None):
             sys.exit(1)
         repository = Repository(available_repositories[0])
 
-    repository.add(package)
+    for p in package:
+        repository.add(p)
 
 
 @click.command(short_help='Remove a package from a repository')
 @click.option('--repository', callback=is_valid_repository)
-@click.argument('package')
+@click.argument('package', nargs=-1, required=True)
 def remove(repository, package):
     if not repository:
         if len(available_repositories) != 1:
@@ -76,7 +86,8 @@ def remove(repository, package):
         repository = Repository(available_repositories[0])
 
     # TODO: Implementation missing
-    repository.remove(package)
+    for pkg in package:
+        repository.remove_and_sign(pkg)
 
 
 @click.command('list', short_help='List repositories and related packages')
@@ -109,7 +120,8 @@ def _list(repository):
 @click.option('--force', is_flag=True, default=False,
               help='Bypass up-to-date check.')
 @click.option('--jobs', type=int, help='Number of jobs to run builds with.')
-def update(repository, force, jobs):
+@click.argument('package', nargs=-1)
+def update(repository, force, jobs, package):
     if repository:
         repositories = [repository]
     else:
@@ -117,7 +129,12 @@ def update(repository, force, jobs):
 
     with TemporaryDirectory(prefix=PROJECT_NAME, suffix='pkgs') as pkgcache:
         for repository in repositories:
-            for pkg in repository.packages:
+            if package:
+                pkgs = {repository.find_package(p) for p in package }
+            else:
+                pkgs = repository.packages
+
+            for pkg in pkgs:
                 pkg.update(
                     force=force,
                     buildopts=dict(
@@ -129,6 +146,7 @@ def update(repository, force, jobs):
 
 
 cli.add_command(init)
+cli.add_command(drop)
 cli.add_command(add)
 cli.add_command(remove)
 cli.add_command(_list)
