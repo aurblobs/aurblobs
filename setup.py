@@ -23,7 +23,7 @@ required = [
     'click',
     'docker>=3.0.0',
     'GitPython',
-    'gnupg',
+    'pretty-bad-protocol>=3.1.1',
     'requests',
     'xdg'
 ]
