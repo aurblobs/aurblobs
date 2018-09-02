@@ -2,6 +2,7 @@ import json
 import os
 import sys
 from tempfile import TemporaryDirectory
+from shutil import rmtree
 
 import datetime
 import docker
@@ -149,6 +150,44 @@ class Repository:
                 file=sys.stderr
             )
             sys.exit(1)
+
+    def drop(self):
+        try:
+            os.remove(self.config_file())
+        except OSError as ex:
+            click.echo(
+                'Error while deleting configuration file at {0}: {1}'.format(
+                    self.config_file(), ex),
+                file=sys.stderr
+            )
+
+        try:
+            os.remove(self.signing_key_file())
+        except OSError as ex:
+            click.echo(
+                'Error while deleting signing key file at {0}: {1}'.format(
+                    self.signing_key_file(), ex),
+                file=sys.stderr
+            )
+
+        try:
+            os.remove(self.state_file())
+        except OSError as ex:
+            click.echo(
+                'Error while deleting state file at {0}: {1}'.format(
+                    self.state_file(), ex),
+                file=sys.stderr
+            )
+
+        try:
+            rmtree(self.basedir)
+        except OSError as ex:
+            click.echo(
+                'Error while deleting the repository at {0}: {1}'.format(
+                    self.basedir, ex),
+                file=sys.stderr
+            )
+
 
     def load(self):
         try:

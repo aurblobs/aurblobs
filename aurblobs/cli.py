@@ -46,6 +46,15 @@ def init(repository, basedir, mail):
     _repository.create(repository, basedir, mail)
 
 
+@click.command(short_help='Drop a repository, it\'s configuration, state and '
+                          'signing key.')
+@click.argument('repository', callback=is_valid_repository)
+@click.confirmation_option(
+    prompt='Are you sure you want to drop the repository?')
+def drop(repository):
+    repository.drop()
+
+
 @click.command(short_help='Add a new package to an existing repository.')
 @click.option('--repository', callback=is_valid_repository)
 @click.argument('package', nargs=-1, required=True)
@@ -137,6 +146,7 @@ def update(repository, force, jobs, package):
 
 
 cli.add_command(init)
+cli.add_command(drop)
 cli.add_command(add)
 cli.add_command(remove)
 cli.add_command(_list)
