@@ -8,8 +8,8 @@ import docker
 import requests
 from pkg_resources import parse_version
 
-import gnupg
 import click
+from pretty_bad_protocol import gnupg
 
 from .constants import CONFIG_DIR, CACHE_DIR, DOCKER_IMAGE, PROJECT_NAME
 from .package import Package
