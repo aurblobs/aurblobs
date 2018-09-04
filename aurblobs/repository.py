@@ -189,7 +189,6 @@ class Repository:
                 file=sys.stderr
             )
 
-
     def load(self):
         try:
             with open(self.config_file()) as handle:
@@ -320,7 +319,6 @@ class Repository:
                 file=sys.stderr
             )
             sys.exit(1)
-
 
     def sign_and_add(self, pkgroot):
         timestamp = '{:%H-%M-%s}'.format(datetime.datetime.now())

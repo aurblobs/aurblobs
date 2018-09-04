@@ -130,7 +130,7 @@ def update(repository, force, jobs, package):
     with TemporaryDirectory(prefix=PROJECT_NAME, suffix='pkgs') as pkgcache:
         for repository in repositories:
             if package:
-                pkgs = {repository.find_package(p) for p in package }
+                pkgs = {repository.find_package(p) for p in package}
             else:
                 pkgs = repository.packages
 
