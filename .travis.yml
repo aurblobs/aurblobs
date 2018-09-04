@@ -8,3 +8,6 @@ install:
 
 script:
   - flake8 aurblobs/
+
+notifications:
+    email: false
