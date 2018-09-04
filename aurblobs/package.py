@@ -176,7 +176,6 @@ class Package:
             volumes[pkgcache] = {'bind': '/var/cache/pacman/pkg', 'mode': 'rw'}
 
         client = docker.from_env()
-        # remove=True only removed for debugging purposes in this early stage.
         try:
             container = client.containers.run(
                 image=DOCKER_IMAGE,
@@ -191,7 +190,8 @@ class Package:
                     "JOBS": jobs or os.cpu_count(),
                     "REPO_NAME": self.repository.name,
                 },
-                volumes=volumes
+                volumes=volumes,
+                remove=True
             )
         except requests.exceptions.ConnectionError as ex:
             click.echo(

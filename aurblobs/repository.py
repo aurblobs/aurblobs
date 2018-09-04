@@ -125,7 +125,8 @@ class Repository:
                     "USER_ID": os.getuid(),
                     "REPO_NAME": self.name,
                 },
-                volumes=volumes
+                volumes=volumes,
+                remove=True
             )
         except requests.exceptions.ConnectionError as ex:
             click.echo(
@@ -347,7 +348,8 @@ class Repository:
                     "USER_ID": os.getuid(),
                     "REPO_NAME": self.name,
                 },
-                volumes=volumes
+                volumes=volumes,
+                remove=True
             )
         except requests.exceptions.ConnectionError as ex:
             click.echo(
@@ -399,7 +401,8 @@ class Repository:
                     "REPO_NAME": self.name,
                     "PKGNAMES": ' '.join(pkg.pkgs.keys())
                 },
-                volumes=volumes
+                volumes=volumes,
+                remove=True
             )
         except requests.exceptions.ConnectionError as ex:
             click.echo(
