@@ -143,7 +143,7 @@ class Repository:
             # persist configuration
             self.save()
             click.echo(
-                "Repositry successfully initialized."
+                "Repository successfully initialized."
             )
         else:
             click.echo(
