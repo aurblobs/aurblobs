@@ -25,7 +25,7 @@ required = [
     'GitPython',
     'pretty-bad-protocol>=3.1.1',
     'requests',
-    'xdg'
+    'pyxdg'
 ]
 
 
