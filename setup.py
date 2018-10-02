@@ -42,6 +42,6 @@ setup(
     install_requires=required,
     packages=find_packages(),
     entry_points={
-        'console_scripts': ['aurblobs=aurblobs:cli']
+        'console_scripts': ['aurblobs=aurblobs.__main__:cli']
     },
 )
