@@ -41,6 +41,7 @@ setup(
     license='AGPL',
     install_requires=required,
     packages=find_packages(),
+    package_dir={'docker': 'aurblobs/docker'},
     entry_points={
         'console_scripts': ['aurblobs=aurblobs.__main__:cli']
     },

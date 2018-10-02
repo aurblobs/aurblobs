@@ -9,6 +9,7 @@ from . import __VERSION__
 from .constants import (
     CONFIG_DIR, CACHE_DIR, PACMAN_SYNC_CACHE_DIR, PROJECT_NAME
 )
+from .container import update_build_container
 from .repository import Repository
 
 for directory in [CONFIG_DIR, CACHE_DIR, PACMAN_SYNC_CACHE_DIR]:
@@ -126,6 +127,8 @@ def update(repository, force, jobs, package):
         repositories = [repository]
     else:
         repositories = [Repository(name) for name in available_repositories]
+
+    update_build_container()
 
     with TemporaryDirectory(prefix=PROJECT_NAME, suffix='pkgs') as pkgcache:
         for repository in repositories:
