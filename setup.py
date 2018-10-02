@@ -40,8 +40,9 @@ setup(
     url='https://www.github.com/aurblobs/aurblobs',
     license='AGPL',
     install_requires=required,
+    include_package_data=True,
+    zip_safe=False,
     packages=find_packages(),
-    package_dir={'docker': 'aurblobs/docker'},
     entry_points={
         'console_scripts': ['aurblobs=aurblobs.__main__:cli']
     },
