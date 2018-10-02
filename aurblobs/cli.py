@@ -42,8 +42,9 @@ def cli():
 @click.argument('basedir')
 @click.argument('mail')
 def init(repository, basedir, mail):
-    _repository = Repository()
+    update_build_container()
 
+    _repository = Repository()
     _repository.create(repository, basedir, mail)
 
 
@@ -85,6 +86,8 @@ def remove(repository, package):
             )
             sys.exit(1)
         repository = Repository(available_repositories[0])
+
+    update_build_container()
 
     # TODO: Implementation missing
     for pkg in package:
