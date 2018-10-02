@@ -25,7 +25,7 @@ required = [
     'GitPython',
     'pretty-bad-protocol>=3.1.1',
     'requests',
-    'xdg'
+    'pyxdg'
 ]
 
 
@@ -40,8 +40,10 @@ setup(
     url='https://www.github.com/aurblobs/aurblobs',
     license='AGPL',
     install_requires=required,
+    include_package_data=True,
+    zip_safe=False,
     packages=find_packages(),
     entry_points={
-        'console_scripts': ['aurblobs=aurblobs:cli']
+        'console_scripts': ['aurblobs=aurblobs.__main__:cli']
     },
 )

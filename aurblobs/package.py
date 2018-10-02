@@ -81,6 +81,10 @@ class Package:
         if not buildopts:
             buildopts = {}
 
+        head = git.cmd.Git().ls_remote(self.aur_git_url(), "HEAD").split()[0]
+        if not self.needs_rebuild(head, force):
+            return False
+
         with TemporaryDirectory(prefix=PROJECT_NAME, suffix=self.name) as basedir:
             pkgroot = os.path.join(basedir, '{0}.git'.format(self.name))
             pkgrepo = git.Repo.clone_from(
@@ -88,73 +92,72 @@ class Package:
             )
 
             head = str(pkgrepo.head.commit)
-            if self.needs_rebuild(head, force):
-                buildopts['pkgroot'] = pkgroot
-                if self.build(**buildopts):
-                    click.echo(
-                        '{0}: package build complete'.format(self.fullname)
+            buildopts['pkgroot'] = pkgroot
+            if self.build(**buildopts):
+                click.echo(
+                    '{0}: package build complete'.format(self.fullname)
+                )
+
+                self.repository.sign_and_add(pkgroot)
+                click.echo(
+                    '{0}: package signed and repository updated'.format(
+                        self.fullname
                     )
+                )
 
-                    self.repository.sign_and_add(pkgroot)
-                    click.echo(
-                        '{0}: package signed and repository updated'.format(
-                            self.fullname
-                        )
-                    )
+                resulting_pkgs = self.get_pkg_names(pkgroot)
 
-                    resulting_pkgs = self.get_pkg_names(pkgroot)
+                # show new packages, that did not exist before
+                new = [pkgname for pkgname in resulting_pkgs.keys()
+                       if pkgname not in self.pkgs]
+                if new:
+                    click.echo('  new:')
+                    for pkgname in new:
+                        click.echo('    - {0} ({1})'.format(
+                            pkgname, resulting_pkgs[pkgname]['version']
+                        ))
 
-                    # show new packages, that did not exist before
-                    new = [pkgname for pkgname in resulting_pkgs.keys()
-                           if pkgname not in self.pkgs]
-                    if new:
-                        click.echo('  new:')
-                        for pkgname in new:
-                            click.echo('    - {0} ({1})'.format(
-                                pkgname, resulting_pkgs[pkgname]['version']
-                            ))
+                # show upgraded packages, where the version string changed
+                upgraded = [
+                    pkgname for pkgname, pkginfo in resulting_pkgs.items()
+                    if pkgname in self.pkgs
+                    and self.pkgs[pkgname]['version'] != pkginfo['version']
+                ]
+                if upgraded:
+                    click.echo('  upgraded:')
+                    for pkgname in upgraded:
+                        click.echo('    - {0} ({1} → {2})'.format(
+                            pkgname,
+                            self.pkgs[pkgname]['version'],
+                            resulting_pkgs[pkgname]['version'],
+                        ))
 
-                    # show upgraded packages, where the version string changed
-                    upgraded = [
-                        pkgname for pkgname, pkginfo in resulting_pkgs.items()
-                        if pkgname in self.pkgs
-                        and self.pkgs[pkgname]['version'] != pkginfo['version']
-                    ]
-                    if upgraded:
-                        click.echo('  upgraded:')
-                        for pkgname in upgraded:
-                            click.echo('    - {0} ({1} → {2})'.format(
+                # show old packages that were not rebuilt
+                # TODO: remove these packages from the repository
+                dangling = [
+                    pkgname for pkgname in self.pkgs.keys()
+                    if pkgname not in resulting_pkgs
+                ]
+                if dangling:
+                    click.echo('  dangling:')
+                    for pkgname in dangling:
+                        click.echo(
+                            '    - {0} ({1}): {2}'.format(
                                 pkgname,
                                 self.pkgs[pkgname]['version'],
-                                resulting_pkgs[pkgname]['version'],
-                            ))
-
-                    # show old packages that were not rebuilt
-                    # TODO: remove these packages from the repository
-                    dangling = [
-                        pkgname for pkgname in self.pkgs.keys()
-                        if pkgname not in resulting_pkgs
-                    ]
-                    if dangling:
-                        click.echo('  dangling:')
-                        for pkgname in dangling:
-                            click.echo(
-                                '    - {0} ({1}): {2}'.format(
-                                    pkgname,
-                                    self.pkgs[pkgname]['version'],
-                                    self.pkgs[pkgname]['file']
-                                )
+                                self.pkgs[pkgname]['file']
                             )
+                        )
 
-                    self.commit = head
-                    self.updated = int(time.time())
-                    self.pkgs = resulting_pkgs
-                else:
-                    click.echo(
-                        '{0}: build unsuccessful check the build log for '
-                        'errors.'.format(self.fullname),
-                        file=sys.stderr
-                    )
+                self.commit = head
+                self.updated = int(time.time())
+                self.pkgs = resulting_pkgs
+            else:
+                click.echo(
+                    '{0}: build unsuccessful check the build log for '
+                    'errors.'.format(self.fullname),
+                    file=sys.stderr
+                )
 
         return False
 
@@ -176,7 +179,6 @@ class Package:
             volumes[pkgcache] = {'bind': '/var/cache/pacman/pkg', 'mode': 'rw'}
 
         client = docker.from_env()
-        # remove=True only removed for debugging purposes in this early stage.
         try:
             container = client.containers.run(
                 image=DOCKER_IMAGE,
@@ -191,7 +193,8 @@ class Package:
                     "JOBS": jobs or os.cpu_count(),
                     "REPO_NAME": self.repository.name,
                 },
-                volumes=volumes
+                volumes=volumes,
+                remove=True
             )
         except requests.exceptions.ConnectionError as ex:
             click.echo(

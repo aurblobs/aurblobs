@@ -125,7 +125,8 @@ class Repository:
                     "USER_ID": os.getuid(),
                     "REPO_NAME": self.name,
                 },
-                volumes=volumes
+                volumes=volumes,
+                remove=True
             )
         except requests.exceptions.ConnectionError as ex:
             click.echo(
@@ -142,7 +143,7 @@ class Repository:
             # persist configuration
             self.save()
             click.echo(
-                "Repositry successfully initialized."
+                "Repository successfully initialized."
             )
         else:
             click.echo(
@@ -187,7 +188,6 @@ class Repository:
                     self.basedir, ex),
                 file=sys.stderr
             )
-
 
     def load(self):
         try:
@@ -320,7 +320,6 @@ class Repository:
             )
             sys.exit(1)
 
-
     def sign_and_add(self, pkgroot):
         timestamp = '{:%H-%M-%s}'.format(datetime.datetime.now())
 
@@ -347,7 +346,8 @@ class Repository:
                     "USER_ID": os.getuid(),
                     "REPO_NAME": self.name,
                 },
-                volumes=volumes
+                volumes=volumes,
+                remove=True
             )
         except requests.exceptions.ConnectionError as ex:
             click.echo(
@@ -399,7 +399,8 @@ class Repository:
                     "REPO_NAME": self.name,
                     "PKGNAMES": ' '.join(pkg.pkgs.keys())
                 },
-                volumes=volumes
+                volumes=volumes,
+                remove=True
             )
         except requests.exceptions.ConnectionError as ex:
             click.echo(

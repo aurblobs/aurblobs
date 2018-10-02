@@ -9,6 +9,7 @@ from . import __VERSION__
 from .constants import (
     CONFIG_DIR, CACHE_DIR, PACMAN_SYNC_CACHE_DIR, PROJECT_NAME
 )
+from .container import update_build_container
 from .repository import Repository
 
 for directory in [CONFIG_DIR, CACHE_DIR, PACMAN_SYNC_CACHE_DIR]:
@@ -41,8 +42,9 @@ def cli():
 @click.argument('basedir')
 @click.argument('mail')
 def init(repository, basedir, mail):
-    _repository = Repository()
+    update_build_container()
 
+    _repository = Repository()
     _repository.create(repository, basedir, mail)
 
 
@@ -84,6 +86,8 @@ def remove(repository, package):
             )
             sys.exit(1)
         repository = Repository(available_repositories[0])
+
+    update_build_container()
 
     # TODO: Implementation missing
     for pkg in package:
@@ -127,10 +131,12 @@ def update(repository, force, jobs, package):
     else:
         repositories = [Repository(name) for name in available_repositories]
 
+    update_build_container()
+
     with TemporaryDirectory(prefix=PROJECT_NAME, suffix='pkgs') as pkgcache:
         for repository in repositories:
             if package:
-                pkgs = {repository.find_package(p) for p in package }
+                pkgs = {repository.find_package(p) for p in package}
             else:
                 pkgs = repository.packages
 
