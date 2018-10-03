@@ -2,6 +2,13 @@
 
 set -e
 
+# https://bugs.archlinux.org/task/50439
+fix_makepkg_chmod() {
+    chmod a+rw /pkg/pkg
+}
+
+trap fix_makepkg_chmod EXIT
+
 cat << EOF | sudo tee --append /etc/pacman.conf
 [${REPO_NAME}]
 SigLevel = Never
