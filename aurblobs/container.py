@@ -42,7 +42,7 @@ def need_rebuild():
     for layer in image.history():
         if layer['Id'] == "<missing>":
             continue
-        if layer['Id'].split(':', 1)[1].startswith(baseimage_new.id):
+        if layer['Id'].startswith(baseimage_new.id):
             baselayer_found = True
             break
 
