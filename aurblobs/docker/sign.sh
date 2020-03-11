@@ -16,6 +16,6 @@ done
 cd /repo
 cp /pkg/*.pkg.tar.* .
 
-repo-add --sign --delta --remove $REPO_NAME.db.tar.gz $PKGS
+repo-add --sign --remove $REPO_NAME.db.tar.gz $PKGS
 
 exit 0
